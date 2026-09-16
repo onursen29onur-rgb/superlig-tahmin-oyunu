@@ -23,6 +23,8 @@ async function testConnection() {
     }
 
     console.log("Oyuncular:", data);
+    alert(JSON.stringify(data));
+
     alert("Supabase bağlantısı başarılı");
   } catch (err) {
     console.error(err);
