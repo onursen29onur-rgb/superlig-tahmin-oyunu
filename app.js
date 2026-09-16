@@ -42,7 +42,10 @@ async function loadPlayers(){
   }
 
   players = data || [];
-
+  alert("Oyuncu sayısı: " + players.length);
+  
+  console.log(players);
+  
   $("playerSelect").innerHTML =
     '<option value="">Oyuncu seç...</option>' +
     players.map(p =>
