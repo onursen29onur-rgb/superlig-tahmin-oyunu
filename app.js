@@ -1,4 +1,3 @@
-
 const SUPABASE_URL = "https://xmdbbvhnzsswqcqibwax.supabase.co";
 
 const SUPABASE_ANON_KEY =
@@ -10,7 +9,7 @@ window.supabase.createClient(
   SUPABASE_ANON_KEY
 );
 
-const $ = (id)=>document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
 let players = [];
 let matches = [];
@@ -20,9 +19,9 @@ function toast(msg){
   const t = $("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(()=>{
+  setTimeout(() => {
     t.classList.remove("show");
-  },2500);
+  }, 2500);
 }
 
 async function loadPlayers(){
@@ -31,8 +30,8 @@ async function loadPlayers(){
     await supabaseClient
       .from("players")
       .select("*")
-      .order("total_points",{
-        ascending:false
+      .order("total_points", {
+        ascending: false
       });
 
   if(error){
@@ -42,16 +41,11 @@ async function loadPlayers(){
   }
 
   players = data || [];
-  alert("Oyuncu sayısı: " + players.length);
-  
-  console.log(players);
-  
+
   $("playerSelect").innerHTML =
     '<option value="">Oyuncu seç...</option>' +
     players.map(p =>
-      `<option value="${p.id}">
-        ${p.name}
-      </option>`
+      `<option value="${p.id}">${p.name}</option>`
     ).join("");
 
   renderLeaderboard();
@@ -63,7 +57,7 @@ async function loadMatches(){
     await supabaseClient
       .from("matches")
       .select("*")
-      .eq("week",6)
+      .eq("week", 6)
       .order("kickoff_at");
 
   if(error){
@@ -82,26 +76,24 @@ function renderLeaderboard(){
     players[0].total_points : 0;
 
   $("leaderBody").innerHTML =
-    players.map((p,i)=>{
+    players.map((p, i) => {
 
       const rank =
-        i===0 ? "🥇" :
-        i===1 ? "🥈" :
-        i===2 ? "🥉" :
-        (i+1);
+        i === 0 ? "🥇" :
+        i === 1 ? "🥈" :
+        i === 2 ? "🥉" :
+        (i + 1);
 
       return `
       <tr>
         <td>${rank}</td>
         <td>${p.name}</td>
-        <td class="points">
-          ${p.total_points}
-        </td>
+        <td class="points">${p.total_points}</td>
         <td>
           ${
-            i===0
+            i === 0
             ? "-"
-            : (topScore-p.total_points).toFixed(1)
+            : (topScore - p.total_points).toFixed(1)
           }
         </td>
       </tr>
@@ -110,30 +102,65 @@ function renderLeaderboard(){
     }).join("");
 
   $("podium").innerHTML =
-    players.slice(0,3)
-    .map((p,i)=>`
+    players.slice(0, 3)
+    .map((p, i) => `
       <div class="pod">
-        <div class="medal">
-          ${["🥇","🥈","🥉"][i]}
-        </div>
-        <div class="name">
-          ${p.name}
-        </div>
-        <div class="points">
-          ${p.total_points}
-        </div>
+        <div class="medal">${["🥇","🥈","🥉"][i]}</div>
+        <div class="name">${p.name}</div>
+        <div class="points">${p.total_points}</div>
       </div>
     `).join("");
 }
 
+function weekLockTime(){
+
+  if(!matches.length){
+    return null;
+  }
+
+  const times =
+    matches.map(m => new Date(m.kickoff_at).getTime());
+
+  return Math.min(...times);
+}
+
+function isWeekLocked(){
+
+  const lockTime = weekLockTime();
+
+  if(lockTime === null){
+    return false;
+  }
+
+  return Date.now() >= lockTime;
+}
+
 async function loadPredictions(){
+
+  const { data: savedPredictions, error } =
+    await supabaseClient
+      .from("predictions")
+      .select("*")
+      .eq("player_id", currentPlayer);
+
+  if(error){
+    console.error(error);
+    toast("Tahminler yüklenemedi");
+    return;
+  }
+
+  const saved = savedPredictions || [];
 
   $("matchGrid").innerHTML = "";
 
   for(const match of matches){
 
-    const card =
-    document.createElement("div");
+    const pred =
+      saved.find(p => p.match_id == match.id);
+
+    const locked = isWeekLocked();
+
+    const card = document.createElement("div");
 
     card.className = "match-card";
 
@@ -142,24 +169,14 @@ async function loadPredictions(){
       <div class="match-meta">
         <span>6. Hafta</span>
         <span>
-          ${new Date(
-            match.kickoff_at
-          ).toLocaleString("tr-TR")}
+          ${new Date(match.kickoff_at).toLocaleString("tr-TR")}
         </span>
       </div>
 
       <div class="teams">
-        <span class="team">
-          ${match.home_team}
-        </span>
-
-        <span class="versus">
-          VS
-        </span>
-
-        <span class="team">
-          ${match.away_team}
-        </span>
+        <span class="team">${match.home_team}</span>
+        <span class="versus">VS</span>
+        <span class="team">${match.away_team}</span>
       </div>
 
       <div class="score-entry">
@@ -168,6 +185,8 @@ async function loadPredictions(){
           type="number"
           min="0"
           id="h_${match.id}"
+          value="${pred?.home_prediction ?? ""}"
+          ${locked ? "disabled" : ""}
         >
 
         <span>-</span>
@@ -176,19 +195,26 @@ async function loadPredictions(){
           type="number"
           min="0"
           id="a_${match.id}"
+          value="${pred?.away_prediction ?? ""}"
+          ${locked ? "disabled" : ""}
         >
 
       </div>
 
       <div class="match-footer">
 
-        <span class="lock-state">
-          Tahmin bekleniyor
+        <span class="lock-state ${locked ? "locked" : (pred ? "saved" : "")}">
+          ${
+            locked
+            ? "🔒 Hafta kapandı"
+            : (pred ? "✓ Kaydedildi" : "Tahmin bekleniyor")
+          }
         </span>
 
         <button
           class="btn primary"
           onclick="savePrediction(${match.id})"
+          ${locked ? "disabled" : ""}
         >
           Kaydet
         </button>
@@ -196,12 +222,15 @@ async function loadPredictions(){
       </div>
     `;
 
-    $("matchGrid")
-      .appendChild(card);
+    $("matchGrid").appendChild(card);
   }
 
+  const lockTime = weekLockTime();
+
   $("weekSummary").textContent =
-  `${matches.length} maç yüklendi`;
+    isWeekLocked()
+    ? `${matches.length} maç · ${saved.length} tahmin kayıtlı · 🔒 Hafta kapandı`
+    : `${matches.length} maç · ${saved.length} tahmin kayıtlı · Son tahmin: ${new Date(lockTime).toLocaleString("tr-TR")}`;
 }
 
 window.savePrediction =
@@ -212,103 +241,130 @@ async function(matchId){
     return;
   }
 
-  const h =
-    Number(
-      document.getElementById(
-        `h_${matchId}`
-      ).value
-    );
+  if(isWeekLocked()){
+    toast("Hafta başladı, tahminler kapandı");
+    return;
+  }
 
-  const a =
-    Number(
-      document.getElementById(
-        `a_${matchId}`
-      ).value
-    );
+  const homeInput = document.getElementById(`h_${matchId}`);
+  const awayInput = document.getElementById(`a_${matchId}`);
 
-  if(
-    Number.isNaN(h) ||
-    Number.isNaN(a)
-  ){
+  if(homeInput.value === "" || awayInput.value === ""){
     toast("Skor giriniz");
     return;
   }
 
+  const h = Number(homeInput.value);
+  const a = Number(awayInput.value);
+
+  if(
+    !Number.isInteger(h) ||
+    !Number.isInteger(a) ||
+    h < 0 || a < 0
+  ){
+    toast("Geçerli bir skor giriniz");
+    return;
+  }
+
   const payload = {
-
-    player_id:
-      currentPlayer,
-
-    match_id:
-      matchId,
-
-    home_prediction:
-      h,
-
-    away_prediction:
-      a
-
+    player_id: currentPlayer,
+    match_id: matchId,
+    home_prediction: h,
+    away_prediction: a,
+    updated_at: new Date().toISOString()
   };
 
   const { error } =
     await supabaseClient
       .from("predictions")
-      .upsert(payload, { onConflict: "player_id,match_id});
+      .upsert(payload, {
+        onConflict: "player_id,match_id"
+      });
 
   if(error){
-
     console.error(error);
-
-    toast(
-      "Tahmin kaydedilemedi"
-    );
-
+    toast("Tahmin kaydedilemedi");
     return;
   }
 
-  toast(
-    "Tahmin kaydedildi"
-  );
+  const state =
+    homeInput
+      .closest(".match-card")
+      .querySelector(".lock-state");
+
+  state.textContent = "✓ Kaydedildi";
+  state.className = "lock-state saved";
+
+  toast("Tahmin kaydedildi");
 
 };
+
+$("saveAllBtn")
+.addEventListener(
+  "click",
+  async () => {
+
+    if(isWeekLocked()){
+      toast("Hafta başladı, tahminler kapandı");
+      return;
+    }
+
+    let ok = 0;
+    let skipped = 0;
+
+    for(const match of matches){
+
+      const h = document.getElementById(`h_${match.id}`);
+      const a = document.getElementById(`a_${match.id}`);
+
+      if(!h || !a || h.value === "" || a.value === ""){
+        skipped++;
+        continue;
+      }
+
+      await window.savePrediction(match.id);
+      ok++;
+    }
+
+    toast(`${ok} tahmin kaydedildi, ${skipped} maç atlandı`);
+
+  }
+);
+
+$("refreshBtn")
+.addEventListener(
+  "click",
+  async () => {
+    await loadPlayers();
+    await loadMatches();
+    if(currentPlayer){
+      await loadPredictions();
+    }
+    toast("Veriler yenilendi");
+  }
+);
 
 $("loginBtn")
 .addEventListener(
   "click",
-  async ()=>{
+  async () => {
 
-    currentPlayer =
-      $("playerSelect").value;
+    currentPlayer = $("playerSelect").value;
 
     if(!currentPlayer){
-
-      toast(
-        "Oyuncu seçiniz"
-      );
-
+      toast("Oyuncu seçiniz");
       return;
     }
 
-    $("loginCard")
-      .classList.add(
-        "hidden"
-      );
-
-    $("gameArea")
-      .classList.remove(
-        "hidden"
-      );
+    $("loginCard").classList.add("hidden");
+    $("gameArea").classList.remove("hidden");
 
     const p =
       players.find(
-        x =>
-          String(x.id) ===
-          String(currentPlayer)
+        x => String(x.id) === String(currentPlayer)
       );
 
-    $("activePlayerName")
-      .textContent =
-      p ? p.name : "";
+    $("activePlayerName").textContent = p ? p.name : "";
 
     await loadPredictions();
 
@@ -318,79 +374,67 @@ $("loginBtn")
 $("logoutBtn")
 .addEventListener(
   "click",
-  ()=>{
+  () => {
 
     currentPlayer = null;
 
-    $("gameArea")
-      .classList.add(
-        "hidden"
-      );
+    $("gameArea").classList.add("hidden");
+    $("loginCard").classList.remove("hidden");
 
-    $("loginCard")
-      .classList.remove(
-        "hidden"
-      );
+  }
+);
+
+$("themeBtn")
+.addEventListener(
+  "click",
+  () => {
+
+    const isLight =
+      document.documentElement.getAttribute("data-theme") === "light";
+
+    document.documentElement.setAttribute(
+      "data-theme",
+      isLight ? "dark" : "light"
+    );
+
+    $("themeBtn").textContent = isLight ? "☀" : "🌙";
 
   }
 );
 
 document
 .querySelectorAll(".tab")
-.forEach(btn=>{
+.forEach(btn => {
 
-  btn.onclick=()=>{
+  btn.onclick = () => {
 
     document
     .querySelectorAll(".tab")
-    .forEach(t=>
-      t.classList.remove(
-        "active"
-      )
-    );
+    .forEach(t => t.classList.remove("active"));
 
-    btn.classList.add(
-      "active"
-    );
+    btn.classList.add("active");
 
     document
-    .querySelectorAll(
-      ".tab-panel"
-    )
-    .forEach(x=>
-      x.classList.add(
-        "hidden"
-      )
-    );
+    .querySelectorAll(".tab-panel")
+    .forEach(x => x.classList.add("hidden"));
 
     document
-    .getElementById(
-      btn.dataset.tab +
-      "Panel"
-    )
-    .classList.remove(
-      "hidden"
-    );
+    .getElementById(btn.dataset.tab + "Panel")
+    .classList.remove("hidden");
 
   };
 
 });
 
-(async ()=>{
+(async () => {
 
-  $("connectionBadge")
-    .textContent =
-    "Bağlanıyor...";
+  $("connectionBadge").textContent = "Bağlanıyor...";
 
   await loadPlayers();
   await loadMatches();
 
-  $("connectionBadge")
-    .className =
-    "status online";
-
-  $("connectionBadge")
-    .textContent =
-    "Supabase bağlı";
+  $("connectionBadge").className = "status online";
+  $("connectionBadge").textContent = "Supabase bağlı";
 
 })();
+
