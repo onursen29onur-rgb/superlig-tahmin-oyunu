@@ -253,7 +253,7 @@ async function(matchId){
   const { error } =
     await supabaseClient
       .from("predictions")
-      .insert(payload);
+      .upsert(payload, { onConflict: "player_id,match_id});
 
   if(error){
 
