@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071127">
+  <title>Süper Lig Tahmin Oyunu V1</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="ball">⚽</span>
+        <div><strong>Süper Lig Tahmin</strong><small>2026/27 · V1</small></div>
+      </div>
+      <div class="top-actions">
+        <span id="connectionBadge" class="status offline">Bağlantı bekleniyor</span>
+        <button id="themeBtn" class="icon-btn" type="button" aria-label="Temayı değiştir">☀</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="loginCard" class="card login-card">
+        <span class="eyebrow">OYUNCU GİRİŞİ</span>
+        <h1>6. Hafta tahminlerine başla</h1>
+        <p>Kullanıcını seç. Maç başlangıç saatine kadar skorlarını kaydedebilir veya değiştirebilirsin.</p>
+        <label for="playerSelect">Oyuncu</label>
+        <select id="playerSelect"><option value="">Oyuncu seç...</option></select>
+        <button id="loginBtn" class="btn primary" type="button">Devam Et</button>
+        <p class="security-note">V1 isim seçimiyle çalışır. PIN veya e-posta doğrulaması sonraki sürümde eklenmelidir.</p>
+      </section>
+
+      <section id="gameArea" class="hidden">
+        <div class="welcome-row">
+          <div><span class="eyebrow">6. HAFTA</span><h1>Merhaba, <span id="activePlayerName"></span></h1><p id="weekSummary">Tahminlerin yükleniyor...</p></div>
+          <button id="logoutBtn" class="btn ghost" type="button">Oyuncu Değiştir</button>
+        </div>
+
+        <nav class="tabs" aria-label="Uygulama bölümleri">
+          <button class="tab active" data-tab="predictions" type="button">Tahminlerim</button>
+          <button class="tab" data-tab="leaderboard" type="button">Liderlik</button>
+          <button class="tab" data-tab="rules" type="button">Puanlama</button>
+        </nav>
+
+        <section id="predictionsPanel" class="tab-panel">
+          <div class="section-head"><div><h2>6. Hafta Maçları</h2><p>Skoru girip maçı tek tek kaydet veya tümünü kaydet.</p></div><button id="saveAllBtn" class="btn primary" type="button">Tümünü Kaydet</button></div>
+          <div id="matchGrid" class="match-grid"></div>
+        </section>
+
+        <section id="leaderboardPanel" class="tab-panel hidden">
+          <div class="section-head"><div><h2>🏆 Genel Liderlik</h2><p>V3 başlangıç puanları korunur. Yeni puanlar sonuç entegrasyonuyla eklenecek.</p></div><button id="refreshBtn" class="btn ghost" type="button">Yenile</button></div>
+          <div id="podium" class="podium"></div>
+          <div class="card table-card"><table><thead><tr><th>#</th><th>Oyuncu</th><th>Puan</th><th>Lidere Fark</th></tr></thead><tbody id="leaderBody"></tbody></table></div>
+        </section>
+
+        <section id="rulesPanel" class="tab-panel hidden">
+          <div class="rule-grid">
+            <article class="card rule score"><b>150</b><h3>Tam Skor Havuzu</h3><p>Tam skoru bilenler arasında eşit bölünür.</p></article>
+            <article class="card rule side"><b>100</b><h3>Taraf Havuzu</h3><p>1, X veya 2 sonucunu bilenler arasında eşit bölünür.</p></article>
+            <article class="card rule ou"><b>50</b><h3>Alt / Üst Havuzu</h3><p>2,5 gol sınırını bilenler arasında eşit bölünür.</p></article>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
