@@ -57,8 +57,8 @@ async function loadMatches(){
     await supabaseClient
       .from("matches")
       .select("*")
-      .eq("week", 6)
-      .order("kickoff_at");
+      .order("week", { ascending: true })
+      .order("kickoff_at", { ascending: true });
 
   if(error){
     console.error(error);
@@ -66,8 +66,49 @@ async function loadMatches(){
     return;
   }
 
-  matches = data || [];
+  const allMatches = data || [];
+
+  if(!allMatches.length){
+    matches = [];
+    return;
+  }
+
+  const now = new Date();
+
+  const futureMatches =
+    allMatches.filter(
+      m => new Date(m.kickoff_at) >= now
+    );
+
+  let activeWeek;
+
+  if(futureMatches.length){
+
+    activeWeek = Math.min(
+      ...futureMatches.map(m => m.week)
+    );
+
+  } else {
+
+    activeWeek = Math.max(
+      ...allMatches.map(m => m.week)
+    );
+
+  }
+
+  matches =
+    allMatches.filter(
+      m => m.week === activeWeek
+    );
+
+  console.log(
+    "Aktif hafta:",
+    activeWeek,
+    "Maç sayısı:",
+    matches.length
+  );
 }
+
 
 function renderLeaderboard(){
 
