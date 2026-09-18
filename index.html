@@ -186,7 +186,12 @@
             🏅 Madalyalar
           </button>
 
-          
+          <button
+            class="tab"
+            data-tab="matchPoints"
+            type="button">
+            🎯 Maç Puanları
+          </button>
 
         </nav>
 
@@ -411,10 +416,10 @@
 
         </section>
 
-        <!-- PUANLAMA PANELİ -->
+        <!-- MAÇ PUANLARI PANELİ -->
 
         <section
-          id="rulesPanel"
+          id="matchPointsPanel"
           class="tab-panel hidden">
 
           <div class="section-head">
@@ -422,83 +427,83 @@
             <div>
 
               <h2>
-                ⚙️ Puanlama Sistemi
+                🎯 Maç Puanları
               </h2>
 
               <p>
-                Her maçta toplam 300 puanlık
-                üç bağımsız havuz bulunur.
-                Bilen yoksa ilgili havuz yanar.
+                Tamamlanan maçlarda oyuncuların tahminleri,
+                puan kırılımları ve maç performansları.
               </p>
 
             </div>
 
+            <button
+              id="refreshMatchPointsBtn"
+              class="btn ghost"
+              type="button">
+              Yenile
+            </button>
+
           </div>
 
-          <div class="rule-grid">
+          <div class="card result-filter-card">
 
-            <article class="card rule score">
+            <label for="completedMatchSelect">
+              Tamamlanan Maç
+            </label>
 
-              <b>
-                150
-              </b>
+            <select id="completedMatchSelect">
 
-              <h3>
-                Tam Skor Havuzu
-              </h3>
+              <option value="">
+                Maç seç...
+              </option>
 
-              <p>
-                Tam skoru bilen oyuncular
-                arasında eşit olarak bölünür.
-              </p>
+            </select>
 
-              <small>
-                Bilen yoksa 150 puan dağıtılmaz.
-              </small>
+          </div>
 
-            </article>
+          <div
+            id="selectedMatchResult"
+            class="selected-match-result hidden">
+          </div>
 
-            <article class="card rule side">
+          <div
+            id="matchMvpCards"
+            class="mvp-grid">
+          </div>
 
-              <b>
-                100
-              </b>
+          <div class="card table-card match-points-table-card">
 
-              <h3>
-                Taraf Havuzu
-              </h3>
+            <table class="match-points-table">
 
-              <p>
-                1, X veya 2 sonucunu bilen oyuncular
-                arasında eşit olarak bölünür.
-              </p>
+              <thead>
 
-              <small>
-                Bilen yoksa 100 puan dağıtılmaz.
-              </small>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>Tahmin</th>
+                  <th>🎯 Tam Skor</th>
+                  <th>✅ Taraf</th>
+                  <th>⚽ Alt / Üst</th>
+                  <th>🏆 Toplam</th>
+                </tr>
 
-            </article>
+              </thead>
 
-            <article class="card rule ou">
+              <tbody id="matchPointsBody">
 
-              <b>
-                50
-              </b>
+                <tr>
 
-              <h3>
-                Alt / Üst Havuzu
-              </h3>
+                  <td colspan="7">
+                    Puan detaylarını görmek için
+                    tamamlanan bir maç seçiniz.
+                  </td>
 
-              <p>
-                2,5 gol altı veya üstünü bilen oyuncular
-                arasında eşit olarak bölünür.
-              </p>
+                </tr>
 
-              <small>
-                Bilen yoksa 50 puan dağıtılmaz.
-              </small>
+              </tbody>
 
-            </article>
+            </table>
 
           </div>
 
