@@ -383,37 +383,50 @@ function renderLeaderboard() {
       )
       .join("");
 
-  $("podium").innerHTML =
+  const topPlayers =
     sortedPlayers
-      .slice(0, 3)
-      .map(
-        (player, index) => `
-          <div class="pod">
-
-            <div class="medal">
-              ${
-                [
-                  "🥇",
-                  "🥈",
-                  "🥉"
-                ][index]
-              }
-            </div>
-
-            <div class="name">
-              ${player.name}
-            </div>
-
-            <div class="points">
-              ${numberTR(
-                player.total_points
-              )}
-            </div>
-
-          </div>
-        `
+      .filter(
+        player =>
+          Number(player.total_points || 0) > 0
       )
-      .join("");
+      .slice(0, 3);
+
+  $("podium").innerHTML =
+    topPlayers.length
+      ? topPlayers
+          .map(
+            (player, index) => `
+              <div class="pod">
+
+                <div class="medal">
+                  ${
+                    [
+                      "🥇",
+                      "🥈",
+                      "🥉"
+                    ][index]
+                  }
+                </div>
+
+                <div class="name">
+                  ${player.name}
+                </div>
+
+                <div class="points">
+                  ${numberTR(
+                    player.total_points
+                  )}
+                </div>
+
+              </div>
+            `
+          )
+          .join("")
+      : `
+          <div class="card empty-state">
+            Genel klasman için henüz puan bulunmuyor.
+          </div>
+        `;
 }
 
 /* ---------------------------------
@@ -542,7 +555,19 @@ function renderPeriodViews() {
     );
 
   const activePeriodRows =
-    rowsForP`⚡ Aktif Dönem: Hafta ${startWeek}-${endWeek}`;
+    rowsForPeriod(
+      activePeriod
+    );
+
+  const activePeriodTopScore =
+    activePeriodRows.length
+      ? activePeriodRows[0]
+          .total_points
+      : 0;
+
+  $("activePeriodTitle")
+    .textContent =
+    `⚡ Aktif Dönem: Hafta ${startWeek}-${endWeek}`;
 
   $("activePeriodDescription")
     .textContent =
@@ -1002,6 +1027,29 @@ function renderCompletedMatchSelect() {
   }
 }
 
+/* point_type -> bileşen eşlemesi */
+
+function normalizePointType(rawType) {
+
+  const value =
+    String(rawType || "")
+      .toLowerCase();
+
+  if (value === "exact_score") {
+    return "scorePoints";
+  }
+
+  if (value === "side") {
+    return "sidePoints";
+  }
+
+  if (value === "over_under") {
+    return "overUnderPoints";
+  }
+
+  return null;
+}
+
 async function loadMatchPoints(matchId) {
 
   const resultCard =
@@ -1063,7 +1111,7 @@ async function loadMatchPoints(matchId) {
 
   const [
     predictionResponse,
-    scoreResponse
+    pointResponse
   ] =
     await Promise.all([
 
@@ -1078,8 +1126,10 @@ async function loadMatchPoints(matchId) {
         ),
 
       supabaseClient
-        .from("prediction_scores")
-        .select("*")
+        .from("match_points")
+        .select(
+          "player_id,match_id,point_type,points"
+        )
         .eq(
           "match_id",
           Number(matchId)
@@ -1098,11 +1148,11 @@ async function loadMatchPoints(matchId) {
     return;
   }
 
-  if (scoreResponse.error) {
+  if (pointResponse.error) {
 
     console.error(
       "Maç puanları yüklenemedi:",
-      scoreResponse.error
+      pointResponse.error
     );
 
     toast("Maç puanları yüklenemedi");
@@ -1113,8 +1163,44 @@ async function loadMatchPoints(matchId) {
   const predictions =
     predictionResponse.data || [];
 
-  const scores =
-    scoreResponse.data || [];
+  const pointEntries =
+    pointResponse.data || [];
+
+  const pointsByPlayer =
+    new Map();
+
+  pointEntries.forEach(entry => {
+
+    const key =
+      String(entry.player_id);
+
+    if (!pointsByPlayer.has(key)) {
+
+      pointsByPlayer.set(key, {
+        scorePoints: 0,
+        sidePoints: 0,
+        overUnderPoints: 0,
+        totalPoints: 0
+      });
+    }
+
+    const record =
+      pointsByPlayer.get(key);
+
+    const amount =
+      Number(entry.points || 0);
+
+    const component =
+      normalizePointType(
+        entry.point_type
+      );
+
+    if (component) {
+      record[component] += amount;
+    }
+
+    record.totalPoints += amount;
+  });
 
   matchPointRows =
     players
@@ -1127,45 +1213,15 @@ async function loadMatchPoints(matchId) {
               String(player.id)
           );
 
-        const score =
-          scores.find(
-            row =>
-              String(row.player_id) ===
-              String(player.id)
-          );
-
-        const scorePoints =
-          Number(
-            score?.score_points ??
-            score?.exact_score_points ??
-            0
-          );
-
-        const sidePoints =
-          Number(
-            score?.side_points ??
-            score?.result_points ??
-            0
-          );
-
-        const overUnderPoints =
-          Number(
-            score?.ou_points ??
-            score?.over_under_points ??
-            0
-          );
-
-        const componentTotal =
-          scorePoints +
-          sidePoints +
-          overUnderPoints;
-
-        const storedTotal =
-          Number(
-            score?.points ??
-            score?.total_points ??
-            componentTotal
-          );
+        const record =
+          pointsByPlayer.get(
+            String(player.id)
+          ) || {
+            scorePoints: 0,
+            sidePoints: 0,
+            overUnderPoints: 0,
+            totalPoints: 0
+          };
 
         return {
           id: player.id,
@@ -1179,20 +1235,17 @@ async function loadMatchPoints(matchId) {
               ? `${prediction.home_prediction}-${prediction.away_prediction}`
               : "Tahmin yok",
 
-          scorePoints,
-          sidePoints,
-          overUnderPoints,
+          scorePoints:
+            record.scorePoints,
+
+          sidePoints:
+            record.sidePoints,
+
+          overUnderPoints:
+            record.overUnderPoints,
 
           totalPoints:
-            score
-              ? storedTotal
-              : componentTotal,
-
-          pointsMismatch:
-            Boolean(score) &&
-            Math.abs(
-              storedTotal - componentTotal
-            ) > 0.01
+            record.totalPoints
         };
       })
       .sort(
@@ -1206,20 +1259,12 @@ async function loadMatchPoints(matchId) {
             return totalDifference;
           }
 
-          const exactScoreDifference =
+          const exactDifference =
             secondPlayer.scorePoints -
             firstPlayer.scorePoints;
 
-          if (exactScoreDifference !== 0) {
-            return exactScoreDifference;
-          }
-
-          const sideDifference =
-            secondPlayer.sidePoints -
-            firstPlayer.sidePoints;
-
-          if (sideDifference !== 0) {
-            return sideDifference;
+          if (exactDifference !== 0) {
+            return exactDifference;
           }
 
           return firstPlayer.name
@@ -1515,11 +1560,6 @@ function renderMatchPointsTable() {
 
               <td>
                 <strong>${player.name}</strong>
-                ${
-                  player.pointsMismatch
-                    ? ' <span title="Toplam ile bileşenler uyuşmuyor">⚠️</span>'
-                    : ""
-                }
               </td>
 
               <td>
@@ -2321,4 +2361,3 @@ document
   }
 
 })();
-
