@@ -1,397 +1,528 @@
 <!doctype html>
 <html lang="tr" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#071127">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#071127"
+  >
 
   <title>Süper Lig Tahmin Oyunu</title>
 
-  <link rel="stylesheet" href="style.css">
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
 
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="app.js"></script>
+  <script
+    defer
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+  </script>
+
+  <script
+    defer
+    src="app.js">
+  </script>
 </head>
 
 <body>
 
-<div class="app-shell">
+  <div class="app-shell">
 
-<header class="topbar">
-  <div class="brand">
-    <span class="ball">⚽</span>
-    <div>
-      <strong>Süper Lig Tahmin</strong>
-      <small>2026/27</small>
-    </div>
-  </div>
+    <header class="topbar">
 
-  <div class="top-actions">
-    <span id="connectionBadge" class="status offline">
-      Bağlantı bekleniyor
-    </span>
+      <div class="brand">
 
-    <button
-      id="themeBtn"
-      class="icon-btn"
-      type="button"
-      aria-label="Temayı değiştir">
-      ☀
-    </button>
-  </div>
-</header>
+        <span class="ball">
+          ⚽
+        </span>
 
-<main class="container">
+        <div>
+          <strong>Süper Lig Tahmin</strong>
+          <small>2026/27 Sezonu</small>
+        </div>
 
-  <section id="loginCard" class="card login-card">
+      </div>
 
-    <span class="eyebrow">OYUNCU GİRİŞİ</span>
+      <div class="top-actions">
 
-    <h1>Haftalık Tahminler</h1>
+        <span
+          id="connectionBadge"
+          class="status offline">
+          Bağlantı bekleniyor
+        </span>
 
-    <p>
-      Oyuncunu seç ve tahminlerini kaydet.
-    </p>
+        <button
+          id="themeBtn"
+          class="icon-btn"
+          type="button"
+          aria-label="Temayı değiştir">
+          ☀
+        </button>
 
-    <label for="playerSelect">Oyuncu</label>
+      </div>
 
-    <select id="playerSelect">
-      <option value="">Oyuncu seç...</option>
-    </select>
+    </header>
 
-    <button
-      id="loginBtn"
-      class="btn primary"
-      type="button">
-      Devam Et
-    </button>
+    <main class="container">
 
-    <p class="security-note">
-      V1 isim seçimiyle çalışır.
-    </p>
+      <!-- OYUNCU GİRİŞİ -->
 
-  </section>
+      <section
+        id="loginCard"
+        class="card login-card">
 
-  <section id="gameArea" class="hidden">
-
-    <div class="welcome-row">
-
-      <div>
         <span class="eyebrow">
-          AKTİF HAFTA
+          OYUNCU GİRİŞİ
         </span>
 
         <h1>
-          Merhaba,
-          <span id="activePlayerName"></span>
+          Süper Lig Tahmin Oyunu
         </h1>
 
-        <p id="weekSummary">
-          Tahminlerin yükleniyor...
+        <p>
+          Oyuncunu seç, haftalık tahminlerini gir
+          ve sezon yarışını takip et.
         </p>
-      </div>
 
-      <button
-        id="logoutBtn"
-        class="btn ghost"
-        type="button">
-        Oyuncu Değiştir
-      </button>
+        <label for="playerSelect">
+          Oyuncu
+        </label>
 
-    </div>
-
-    <nav class="tabs">
-
-      <button
-        class="tab active"
-        data-tab="predictions"
-        type="button">
-        Tahminlerim
-      </button>
-
-      <button
-        class="tab"
-        data-tab="leaderboard"
-        type="button">
-        🏆 Genel Klasman
-      </button>
-
-      <button
-        class="tab"
-        data-tab="period"
-        type="button">
-        ⚡ Aktif Dönem
-      </button>
-
-      <button
-        class="tab"
-        data-tab="champions"
-        type="button">
-        👑 Dönemler
-      </button>
-
-      <button
-        class="tab"
-        data-tab="rules"
-        type="button">
-        Puanlama
-      </button>
-
-    </nav>
-
-    <!-- TAHMİNLER -->
-
-    <section
-      id="predictionsPanel"
-      class="tab-panel">
-
-      <div class="section-head">
-
-        <div>
-          <h2>Maçlar</h2>
-          <p>
-            Tahminlerini kaydet.
-          </p>
-        </div>
+        <select id="playerSelect">
+          <option value="">
+            Oyuncu seç...
+          </option>
+        </select>
 
         <button
-          id="saveAllBtn"
+          id="loginBtn"
           class="btn primary"
           type="button">
-          Tümünü Kaydet
+          Devam Et
         </button>
 
-      </div>
+        <p class="security-note">
+          Tahminler haftanın ilk maçı başladığında
+          otomatik olarak kapanır.
+        </p>
 
-      <div id="matchGrid" class="match-grid"></div>
+      </section>
 
-    </section>
+      <!-- OYUN ALANI -->
 
-    <!-- GENEL KLASMAN -->
+      <section
+        id="gameArea"
+        class="hidden">
 
-    <section
-      id="leaderboardPanel"
-      class="tab-panel hidden">
+        <div class="welcome-row">
 
-      <div class="section-head">
+          <div>
 
-        <div>
+            <span
+              id="activeWeekEyebrow"
+              class="eyebrow">
+              AKTİF HAFTA
+            </span>
 
-          <h2>
+            <h1>
+              Merhaba,
+              <span id="activePlayerName"></span>
+            </h1>
+
+            <p id="weekSummary">
+              Tahminlerin yükleniyor...
+            </p>
+
+          </div>
+
+          <button
+            id="logoutBtn"
+            class="btn ghost"
+            type="button">
+            Oyuncu Değiştir
+          </button>
+
+        </div>
+
+        <!-- 5 ANA SEKME -->
+
+        <nav
+          class="tabs"
+          aria-label="Uygulama bölümleri">
+
+          <button
+            class="tab active"
+            data-tab="predictions"
+            type="button">
+            Tahminlerim
+          </button>
+
+          <button
+            class="tab"
+            data-tab="leaderboard"
+            type="button">
             🏆 Genel Klasman
-          </h2>
+          </button>
 
-          <p>
-            Tüm sezon puanları
-          </p>
+          <button
+            class="tab"
+            data-tab="periods"
+            type="button">
+            🥇 Dönemler
+          </button>
 
-        </div>
+          <button
+            class="tab"
+            data-tab="medals"
+            type="button">
+            🏅 Madalyalar
+          </button>
 
-        <button
-          id="refreshBtn"
-          class="btn ghost"
-          type="button">
-          Yenile
-        </button>
+          <button
+            class="tab"
+            data-tab="rules"
+            type="button">
+            ⚙️ Puanlama
+          </button>
 
-      </div>
+        </nav>
 
-      <div id="podium" class="podium"></div>
+        <!-- TAHMİNLER PANELİ -->
 
-      <div class="card table-card">
+        <section
+          id="predictionsPanel"
+          class="tab-panel">
 
-        <table>
+          <div class="section-head">
 
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Oyuncu</th>
-              <th>Puan</th>
-              <th>Lidere Fark</th>
-            </tr>
-          </thead>
+            <div>
 
-          <tbody id="leaderBody"></tbody>
+              <h2 id="matchesTitle">
+                Haftanın Maçları
+              </h2>
 
-        </table>
+              <p>
+                Skorlarını tek tek veya toplu olarak kaydet.
+              </p>
 
-      </div>
+            </div>
 
-    </section>
+            <button
+              id="saveAllBtn"
+              class="btn primary"
+              type="button">
+              Tümünü Kaydet
+            </button>
 
-    <!-- AKTİF DÖNEM -->
+          </div>
 
-    <section
-      id="periodPanel"
-      class="tab-panel hidden">
+          <div
+            id="matchGrid"
+            class="match-grid">
+          </div>
 
-      <div class="section-head">
+        </section>
 
-        <div>
+        <!-- GENEL KLASMAN PANELİ -->
 
-          <h2>
-            ⚡ Aktif Dönem
-          </h2>
+        <section
+          id="leaderboardPanel"
+          class="tab-panel hidden">
 
-          <p>
-            Hafta 5-8 puanları
-          </p>
+          <div class="section-head">
 
-        </div>
+            <div>
 
-      </div>
+              <h2>
+                🏆 Genel Klasman
+              </h2>
 
-      <div class="card table-card">
+              <p>
+                Sezon başlangıcından itibaren
+                kazanılan toplam puanlar.
+              </p>
 
-        <table>
+            </div>
 
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Oyuncu</th>
-              <th>Puan</th>
-            </tr>
-          </thead>
+            <button
+              id="refreshBtn"
+              class="btn ghost"
+              type="button">
+              Yenile
+            </button>
 
-          <tbody id="periodBody">
-            <tr>
-              <td>🥇</td>
-              <td>Tarık Buğra Gedikli</td>
-              <td>361,7</td>
-            </tr>
+          </div>
 
-            <tr>
-              <td>🥈</td>
-              <td>Sinan Kalyoncu</td>
-              <td>358,4</td>
-            </tr>
+          <div
+            id="podium"
+            class="podium">
+          </div>
 
-            <tr>
-              <td>🥉</td>
-              <td>Umut İncirkuş</td>
-              <td>240,9</td>
-            </tr>
+          <div class="card table-card">
 
-            <tr>
-              <td>4</td>
-              <td>Onur Şen</td>
-              <td>224,2</td>
-            </tr>
+            <table>
 
-            <tr>
-              <td>5</td>
-              <td>Mertcan Şahin</td>
-              <td>178,4</td>
-            </tr>
+              <thead>
 
-            <tr>
-              <td>6</td>
-              <td>Can Eren Kolasayın</td>
-              <td>136,7</td>
-            </tr>
-          </tbody>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>Puan</th>
+                  <th>Lidere Fark</th>
+                </tr>
 
-        </table>
+              </thead>
 
-      </div>
+              <tbody id="leaderBody">
+              </tbody>
 
-    </section>
+            </table>
 
-    <!-- DÖNEM ŞAMPİYONLARI -->
+          </div>
 
-    <section
-      id="championsPanel"
-      class="tab-panel hidden">
+        </section>
 
-      <div class="section-head">
+        <!-- DÖNEMLER PANELİ -->
 
-        <div>
+        <section
+          id="periodsPanel"
+          class="tab-panel hidden">
 
-          <h2>
-            👑 Dönem Şampiyonları
-          </h2>
+          <!-- AKTİF DÖNEM -->
 
-          <p>
-            Her 4 haftanın kazananı
-          </p>
+          <div class="section-head">
 
-        </div>
+            <div>
 
-      </div>
+              <h2 id="activePeriodTitle">
+                ⚡ Aktif Dönem
+              </h2>
 
-      <div class="card">
+              <p id="activePeriodDescription">
+                Aktif dört haftalık dönemin canlı sıralaması.
+              </p>
 
-        <h3>
-          🏆 Dönem 1 (Hafta 1-4)
-        </h3>
+            </div>
 
-        <p>
-          Tarık Buğra Gedikli
-          <strong>(1192,7)</strong>
-        </p>
+          </div>
 
-        <hr>
+          <div
+            id="periodPodium"
+            class="podium">
+          </div>
 
-        <h3>
-          ⚡ Dönem 2 (Hafta 5-8)
-        </h3>
+          <div class="card table-card">
 
-        <p>
-          Devam ediyor...
-        </p>
+            <table>
 
-      </div>
+              <thead>
 
-    </section>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>Dönem Puanı</th>
+                  <th>Lidere Fark</th>
+                </tr>
 
-    <!-- PUANLAMA -->
+              </thead>
 
-    <section
-      id="rulesPanel"
-      class="tab-panel hidden">
+              <tbody id="periodBody">
+              </tbody>
 
-      <div class="rule-grid">
+            </table>
 
-        <article class="card rule score">
-          <b>150</b>
-          <h3>Tam Skor Havuzu</h3>
-          <p>
-            Tam skoru bilenler arasında bölünür.
-          </p>
-        </article>
+          </div>
 
-        <article class="card rule side">
-          <b>100</b>
-          <h3>Taraf Havuzu</h3>
-          <p>
-            Sonucu bilenler arasında bölünür.
-          </p>
-        </article>
+          <!-- TÜM DÖNEM KÜRSÜLERİ -->
 
-        <article class="card rule ou">
-          <b>50</b>
-          <h3>Alt / Üst Havuzu</h3>
-          <p>
-            Alt-üst bilenler arasında bölünür.
-          </p>
-        </article>
+          <div class="section-head">
 
-      </div>
+            <div>
 
-    </section>
+              <h2>
+                🥇 Dönem Kürsüleri
+              </h2>
 
-  </section>
+              <p>
+                Her dört haftalık dönemin
+                ilk üç oyuncusu.
+              </p>
 
-</main>
+            </div>
 
-</div>
+          </div>
 
-<div
-  id="toast"
-  class="toast"
-  role="status"
-  aria-live="polite">
-</div>
+          <div
+            id="periodPodiums"
+            class="rule-grid">
+          </div>
+
+        </section>
+
+        <!-- MADALYALAR PANELİ -->
+
+        <section
+          id="medalsPanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                🏅 Madalya Tablosu
+              </h2>
+
+              <p>
+                Yalnızca tamamlanan dönemlerin
+                ilk üç dereceleri sayılır.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="card table-card">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>🥇</th>
+                  <th>🥈</th>
+                  <th>🥉</th>
+                  <th>Toplam</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="medalBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </section>
+
+        <!-- PUANLAMA PANELİ -->
+
+        <section
+          id="rulesPanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                ⚙️ Puanlama Sistemi
+              </h2>
+
+              <p>
+                Her maçta toplam 300 puanlık
+                üç bağımsız havuz bulunur.
+                Bilen yoksa ilgili havuz yanar.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="rule-grid">
+
+            <article class="card rule score">
+
+              <b>
+                150
+              </b>
+
+              <h3>
+                Tam Skor Havuzu
+              </h3>
+
+              <p>
+                Tam skoru bilen oyuncular
+                arasında eşit olarak bölünür.
+              </p>
+
+              <small>
+                Bilen yoksa 150 puan dağıtılmaz.
+              </small>
+
+            </article>
+
+            <article class="card rule side">
+
+              <b>
+                100
+              </b>
+
+              <h3>
+                Taraf Havuzu
+              </h3>
+
+              <p>
+                1, X veya 2 sonucunu bilen oyuncular
+                arasında eşit olarak bölünür.
+              </p>
+
+              <small>
+                Bilen yoksa 100 puan dağıtılmaz.
+              </small>
+
+            </article>
+
+            <article class="card rule ou">
+
+              <b>
+                50
+              </b>
+
+              <h3>
+                Alt / Üst Havuzu
+              </h3>
+
+              <p>
+                2,5 gol altı veya üstünü bilen oyuncular
+                arasında eşit olarak bölünür.
+              </p>
+
+              <small>
+                Bilen yoksa 50 puan dağıtılmaz.
+              </small>
+
+            </article>
+
+          </div>
+
+        </section>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite">
+  </div>
 
 </body>
+
 </html>
+
