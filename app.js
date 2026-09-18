@@ -1,481 +1,675 @@
-const SUPABASE_URL = "https://xmdbbvhnzsswqcqibwax.supabase.co";
+<!doctype html>
+<html lang="tr" data-theme="dark">
 
-const SUPABASE_ANON_KEY =
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtZGJidmhuenNzd3FjcWlid2F4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NjQ5ODUsImV4cCI6MjEwNTE0MDk4NX0.FkHURLNFSC6GI_tyO54CXOj_XX30kTlLQ9e9YsboAns";
+<head>
+  <meta charset="utf-8">
 
-const supabaseClient =
-window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  >
 
-const $ = (id) => document.getElementById(id);
+  <meta
+    name="theme-color"
+    content="#071127"
+  >
 
-let players = [];
-let matches = [];
-let currentPlayer = null;
+  <title>Süper Lig Tahmin Oyunu</title>
 
-function toast(msg){
-  const t = $("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => {
-    t.classList.remove("show");
-  }, 2500);
-}
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
 
-async function loadPlayers(){
+  <script
+    defer
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+  </script>
 
-  const { data, error } =
-    await supabaseClient
-      .from("players")
-      .select("*")
-      .order("total_points", {
-        ascending: false
-      });
+  <script
+    defer
+    src="app.js">
+  </script>
+</head>
 
-  if(error){
-    console.error(error);
-    toast("Oyuncular yüklenemedi");
-    return;
-  }
+<body>
 
-  players = data || [];
+  <div class="app-shell">
 
-  $("playerSelect").innerHTML =
-    '<option value="">Oyuncu seç...</option>' +
-    players.map(p =>
-      `<option value="${p.id}">${p.name}</option>`
-    ).join("");
+    <header class="topbar">
 
-  renderLeaderboard();
-}
+      <div class="brand">
 
-async function loadMatches(){
-
-  const { data, error } =
-    await supabaseClient
-      .from("matches")
-      .select("*")
-      .order("week", { ascending: true })
-      .order("kickoff_at", { ascending: true });
-
-  if(error){
-    console.error(error);
-    toast("Maçlar yüklenemedi");
-    return;
-  }
-
-  const allMatches = data || [];
-
-  if(!allMatches.length){
-    matches = [];
-    return;
-  }
-
-  const now = new Date();
-
-  const futureMatches =
-    allMatches.filter(
-      m => new Date(m.kickoff_at) >= now
-    );
-
-  let activeWeek;
-
-  if(futureMatches.length){
-
-    activeWeek = Math.min(
-      ...futureMatches.map(m => m.week)
-    );
-
-  } else {
-
-    activeWeek = Math.max(
-      ...allMatches.map(m => m.week)
-    );
-
-  }
-
-  matches =
-    allMatches.filter(
-      m => m.week === activeWeek
-    );
-
-  console.log(
-    "Aktif hafta:",
-    activeWeek,
-    "Maç sayısı:",
-    matches.length
-  );
-}
-
-
-function renderLeaderboard(){
-
-  const topScore =
-    players.length ?
-    players[0].total_points : 0;
-
-  $("leaderBody").innerHTML =
-    players.map((p, i) => {
-
-      const rank =
-        i === 0 ? "🥇" :
-        i === 1 ? "🥈" :
-        i === 2 ? "🥉" :
-        (i + 1);
-
-      return `
-      <tr>
-        <td>${rank}</td>
-        <td>${p.name}</td>
-        <td class="points">${p.total_points}</td>
-        <td>
-          ${
-            i === 0
-            ? "-"
-            : (topScore - p.total_points).toFixed(1)
-          }
-        </td>
-      </tr>
-      `;
-
-    }).join("");
-
-  $("podium").innerHTML =
-    players.slice(0, 3)
-    .map((p, i) => `
-      <div class="pod">
-        <div class="medal">${["🥇","🥈","🥉"][i]}</div>
-        <div class="name">${p.name}</div>
-        <div class="points">${p.total_points}</div>
-      </div>
-    `).join("");
-}
-
-function weekLockTime(){
-
-  if(!matches.length){
-    return null;
-  }
-
-  const times =
-    matches.map(m => new Date(m.kickoff_at).getTime());
-
-  return Math.min(...times);
-}
-
-function isWeekLocked(){
-
-  const lockTime = weekLockTime();
-
-  if(lockTime === null){
-    return false;
-  }
-
-  return Date.now() >= lockTime;
-}
-
-async function loadPredictions(){
-
-  const { data: savedPredictions, error } =
-    await supabaseClient
-      .from("predictions")
-      .select("*")
-      .eq("player_id", currentPlayer);
-
-  if(error){
-    console.error(error);
-    toast("Tahminler yüklenemedi");
-    return;
-  }
-
-  const saved = savedPredictions || [];
-
-  $("matchGrid").innerHTML = "";
-
-  for(const match of matches){
-
-    const pred =
-      saved.find(p => p.match_id == match.id);
-
-    const locked = isWeekLocked();
-
-    const card = document.createElement("div");
-
-    card.className = "match-card";
-
-    card.innerHTML = `
-
-      <div class="match-meta">
-        <span>${match.week}. Hafta</span>
-        <span>
-          ${new Date(match.kickoff_at).toLocaleString("tr-TR")}
+        <span class="ball">
+          ⚽
         </span>
-      </div>
 
-      <div class="teams">
-        <span class="team">${match.home_team}</span>
-        <span class="versus">VS</span>
-        <span class="team">${match.away_team}</span>
-      </div>
-
-      <div class="score-entry">
-
-        <input
-          type="number"
-          min="0"
-          id="h_${match.id}"
-          value="${pred?.home_prediction ?? ""}"
-          ${locked ? "disabled" : ""}
-        >
-
-        <span>-</span>
-
-        <input
-          type="number"
-          min="0"
-          id="a_${match.id}"
-          value="${pred?.away_prediction ?? ""}"
-          ${locked ? "disabled" : ""}
-        >
+        <div>
+          <strong>Süper Lig Tahmin</strong>
+          <small>2026/27 Sezonu</small>
+        </div>
 
       </div>
 
-      <div class="match-footer">
+      <div class="top-actions">
 
-        <span class="lock-state ${locked ? "locked" : (pred ? "saved" : "")}">
-          ${
-            locked
-            ? "🔒 Hafta kapandı"
-            : (pred ? "✓ Kaydedildi" : "Tahmin bekleniyor")
-          }
+        <span
+          id="connectionBadge"
+          class="status offline">
+          Bağlantı bekleniyor
         </span>
 
         <button
-          class="btn primary"
-          onclick="savePrediction(${match.id})"
-          ${locked ? "disabled" : ""}
-        >
-          Kaydet
+          id="themeBtn"
+          class="icon-btn"
+          type="button"
+          aria-label="Temayı değiştir">
+          ☀
         </button>
 
       </div>
-    `;
 
-    $("matchGrid").appendChild(card);
-  }
+    </header>
 
-  const lockTime = weekLockTime();
+    <main class="container">
 
-  $("weekSummary").textContent =
-    isWeekLocked()
-    ? `${matches.length} maç · ${saved.length} tahmin kayıtlı · 🔒 Hafta kapandı`
-    : `${matches.length} maç · ${saved.length} tahmin kayıtlı · Son tahmin: ${new Date(lockTime).toLocaleString("tr-TR")}`;
-}
+      <!-- OYUNCU GİRİŞİ -->
 
-window.savePrediction =
-async function(matchId){
+      <section
+        id="loginCard"
+        class="card login-card">
 
-  if(!currentPlayer){
-    toast("Oyuncu seçiniz");
-    return;
-  }
+        <span class="eyebrow">
+          OYUNCU GİRİŞİ
+        </span>
 
-  if(isWeekLocked()){
-    toast("Hafta başladı, tahminler kapandı");
-    return;
-  }
+        <h1>
+          Süper Lig Tahmin Oyunu
+        </h1>
 
-  const homeInput = document.getElementById(`h_${matchId}`);
-  const awayInput = document.getElementById(`a_${matchId}`);
+        <p>
+          Oyuncunu seçerek haftalık tahminlerini girebilir,
+          genel klasmanı ve dönem sıralamalarını takip edebilirsin.
+        </p>
 
-  if(homeInput.value === "" || awayInput.value === ""){
-    toast("Skor giriniz");
-    return;
-  }
+        <label for="playerSelect">
+          Oyuncu
+        </label>
 
-  const h = Number(homeInput.value);
-  const a = Number(awayInput.value);
+        <select id="playerSelect">
+          <option value="">
+            Oyuncu seç...
+          </option>
+        </select>
 
-  if(
-    !Number.isInteger(h) ||
-    !Number.isInteger(a) ||
-    h < 0 || a < 0
-  ){
-    toast("Geçerli bir skor giriniz");
-    return;
-  }
+        <button
+          id="loginBtn"
+          class="btn primary"
+          type="button">
+          Devam Et
+        </button>
 
-  const payload = {
-    player_id: currentPlayer,
-    match_id: matchId,
-    home_prediction: h,
-    away_prediction: a,
-    updated_at: new Date().toISOString()
-  };
+        <p class="security-note">
+          Oyuncu seçimiyle giriş yapılır.
+          Tahminler haftanın ilk maçı başladığında otomatik olarak kapanır.
+        </p>
 
-  const { error } =
-    await supabaseClient
-      .from("predictions")
-      .upsert(payload, {
-        onConflict: "player_id,match_id"
-      });
+      </section>
 
-  if(error){
-    console.error(error);
-    toast("Tahmin kaydedilemedi");
-    return;
-  }
+      <!-- OYUN ALANI -->
 
-  const state =
-    homeInput
-      .closest(".match-card")
-      .querySelector(".lock-state");
+      <section
+        id="gameArea"
+        class="hidden">
 
-  state.textContent = "✓ Kaydedildi";
-  state.className = "lock-state saved";
+        <div class="welcome-row">
 
-  toast("Tahmin kaydedildi");
+          <div>
 
-};
+            <span class="eyebrow">
+              AKTİF HAFTA
+            </span>
 
-$("saveAllBtn")
-.addEventListener(
-  "click",
-  async () => {
+            <h1>
+              Merhaba,
+              <span id="activePlayerName"></span>
+            </h1>
 
-    if(isWeekLocked()){
-      toast("Hafta başladı, tahminler kapandı");
-      return;
-    }
+            <p id="weekSummary">
+              Tahminlerin yükleniyor...
+            </p>
 
-    let ok = 0;
-    let skipped = 0;
+          </div>
 
-    for(const match of matches){
+          <button
+            id="logoutBtn"
+            class="btn ghost"
+            type="button">
+            Oyuncu Değiştir
+          </button>
 
-      const h = document.getElementById(`h_${match.id}`);
-      const a = document.getElementById(`a_${match.id}`);
+        </div>
 
-      if(!h || !a || h.value === "" || a.value === ""){
-        skipped++;
-        continue;
-      }
+        <!-- ANA MENÜ -->
 
-      await window.savePrediction(match.id);
-      ok++;
-    }
+        <nav
+          class="tabs"
+          aria-label="Uygulama bölümleri">
 
-    toast(`${ok} tahmin kaydedildi, ${skipped} maç atlandı`);
+          <button
+            class="tab active"
+            data-tab="predictions"
+            type="button">
+            Tahminlerim
+          </button>
 
-  }
-);
+          <button
+            class="tab"
+            data-tab="leaderboard"
+            type="button">
+            🏆 Genel Klasman
+          </button>
 
-$("refreshBtn")
-.addEventListener(
-  "click",
-  async () => {
-    await loadPlayers();
-    await loadMatches();
-    if(currentPlayer){
-      await loadPredictions();
-    }
-    toast("Veriler yenilendi");
-  }
-);
+          <button
+            class="tab"
+            data-tab="period"
+            type="button">
+            ⚡ Aktif Dönem
+          </button>
 
-$("loginBtn")
-.addEventListener(
-  "click",
-  async () => {
+          <button
+            class="tab"
+            data-tab="periodTopThree"
+            type="button">
+            🥇 Dönem İlk 3
+          </button>
 
-    currentPlayer = $("playerSelect").value;
+          <button
+            class="tab"
+            data-tab="rules"
+            type="button">
+            ⚙️ Puanlama
+          </button>
 
-    if(!currentPlayer){
-      toast("Oyuncu seçiniz");
-      return;
-    }
+        </nav>
 
-    $("loginCard").classList.add("hidden");
-    $("gameArea").classList.remove("hidden");
+        <!-- TAHMİNLER PANELİ -->
 
-    const p =
-      players.find(
-        x => String(x.id) === String(currentPlayer)
-      );
+        <section
+          id="predictionsPanel"
+          class="tab-panel">
 
-    $("activePlayerName").textContent = p ? p.name : "";
+          <div class="section-head">
 
-    await loadPredictions();
+            <div>
 
-  }
-);
+              <h2>
+                Haftanın Maçları
+              </h2>
 
-$("logoutBtn")
-.addEventListener(
-  "click",
-  () => {
+              <p>
+                Skor tahminlerini girerek maçları tek tek
+                veya toplu olarak kaydedebilirsin.
+              </p>
 
-    currentPlayer = null;
+            </div>
 
-    $("gameArea").classList.add("hidden");
-    $("loginCard").classList.remove("hidden");
+            <button
+              id="saveAllBtn"
+              class="btn primary"
+              type="button">
+              Tümünü Kaydet
+            </button>
 
-  }
-);
+          </div>
 
-$("themeBtn")
-.addEventListener(
-  "click",
-  () => {
+          <div
+            id="matchGrid"
+            class="match-grid">
+          </div>
 
-    const isLight =
-      document.documentElement.getAttribute("data-theme") === "light";
+        </section>
 
-    document.documentElement.setAttribute(
-      "data-theme",
-      isLight ? "dark" : "light"
-    );
+        <!-- GENEL KLASMAN PANELİ -->
 
-    $("themeBtn").textContent = isLight ? "☀" : "🌙";
+        <section
+          id="leaderboardPanel"
+          class="tab-panel hidden">
 
-  }
-);
+          <div class="section-head">
 
-document
-.querySelectorAll(".tab")
-.forEach(btn => {
+            <div>
 
-  btn.onclick = () => {
+              <h2>
+                🏆 Genel Klasman
+              </h2>
 
-    document
-    .querySelectorAll(".tab")
-    .forEach(t => t.classList.remove("active"));
+              <p>
+                Sezonun başlangıcından itibaren kazanılan
+                tüm puanların toplamı.
+              </p>
 
-    btn.classList.add("active");
+            </div>
 
-    document
-    .querySelectorAll(".tab-panel")
-    .forEach(x => x.classList.add("hidden"));
+            <button
+              id="refreshBtn"
+              class="btn ghost"
+              type="button">
+              Yenile
+            </button>
 
-    document
-    .getElementById(btn.dataset.tab + "Panel")
-    .classList.remove("hidden");
+          </div>
 
-  };
+          <div
+            id="podium"
+            class="podium">
+          </div>
 
-});
+          <div class="card table-card">
 
-(async () => {
+            <table>
 
-  $("connectionBadge").textContent = "Bağlanıyor...";
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>Puan</th>
+                  <th>Lidere Fark</th>
+                </tr>
+              </thead>
 
-  await loadPlayers();
-  await loadMatches();
+              <tbody id="leaderBody">
+              </tbody>
 
-  $("connectionBadge").className = "status online";
-  $("connectionBadge").textContent = "Supabase bağlı";
+            </table>
 
-})();
+          </div>
+
+        </section>
+
+        <!-- AKTİF DÖNEM PANELİ -->
+
+        <section
+          id="periodPanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <span class="eyebrow">
+                DÖNEM 2
+              </span>
+
+              <h2 id="activePeriodTitle">
+                ⚡ Aktif Dönem: Hafta 5-8
+              </h2>
+
+              <p>
+                Yalnızca aktif dört haftalık dönemde
+                kazanılan puanların sıralaması.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            id="periodPodium"
+            class="podium">
+          </div>
+
+          <div class="card table-card">
+
+            <table>
+
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>Dönem Puanı</th>
+                  <th>Lidere Fark</th>
+                </tr>
+              </thead>
+
+              <tbody id="periodBody">
+
+                <tr>
+                  <td>🥇</td>
+                  <td>Tarık Buğra Gedikli</td>
+                  <td class="points">361,7</td>
+                  <td>-</td>
+                </tr>
+
+                <tr>
+                  <td>🥈</td>
+                  <td>Sinan Kalyoncu</td>
+                  <td class="points">358,4</td>
+                  <td>3,3</td>
+                </tr>
+
+                <tr>
+                  <td>🥉</td>
+                  <td>Umut İncirkuş</td>
+                  <td class="points">240,9</td>
+                  <td>120,8</td>
+                </tr>
+
+                <tr>
+                  <td>4</td>
+                  <td>Onur Şen</td>
+                  <td class="points">224,2</td>
+                  <td>137,5</td>
+                </tr>
+
+                <tr>
+                  <td>5</td>
+                  <td>Mertcan Şahin</td>
+                  <td class="points">178,4</td>
+                  <td>183,3</td>
+                </tr>
+
+                <tr>
+                  <td>6</td>
+                  <td>Can Eren Kolasayın</td>
+                  <td class="points">136,7</td>
+                  <td>225,0</td>
+                </tr>
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </section>
+
+        <!-- DÖNEM İLK 3 PANELİ -->
+
+        <section
+          id="periodTopThreePanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                🥇 Dönem İlk 3
+              </h2>
+
+              <p>
+                Her dört haftalık dönemde ilk üç sırayı
+                alan oyuncular.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div
+            id="periodTopThreeContainer"
+            class="rule-grid">
+
+            <!-- DÖNEM 1 -->
+
+            <article class="card rule score">
+
+              <span class="eyebrow">
+                TAMAMLANDI
+              </span>
+
+              <h3>
+                Dönem 1
+              </h3>
+
+              <p>
+                Hafta 1-4
+              </p>
+
+              <div class="period-ranking">
+
+                <p>
+                  🥇
+                  <strong>Tarık Buğra Gedikli</strong>
+                  <span>1192,7 puan</span>
+                </p>
+
+                <p>
+                  🥈
+                  <strong>Umut İncirkuş</strong>
+                  <span>1087,8 puan</span>
+                </p>
+
+                <p>
+                  🥉
+                  <strong>Mertcan Şahin</strong>
+                  <span>1044,3 puan</span>
+                </p>
+
+              </div>
+
+            </article>
+
+            <!-- DÖNEM 2 -->
+
+            <article class="card rule side">
+
+              <span class="eyebrow">
+                DEVAM EDİYOR
+              </span>
+
+              <h3>
+                Dönem 2
+              </h3>
+
+              <p>
+                Hafta 5-8
+              </p>
+
+              <div class="period-ranking">
+
+                <p>
+                  🥇
+                  <strong>Tarık Buğra Gedikli</strong>
+                  <span>361,7 puan</span>
+                </p>
+
+                <p>
+                  🥈
+                  <strong>Sinan Kalyoncu</strong>
+                  <span>358,4 puan</span>
+                </p>
+
+                <p>
+                  🥉
+                  <strong>Umut İncirkuş</strong>
+                  <span>240,9 puan</span>
+                </p>
+
+              </div>
+
+            </article>
+
+          </div>
+
+          <!-- MADALYA ÖZETİ -->
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                🏅 Tamamlanan Dönem Madalyaları
+              </h2>
+
+              <p>
+                Yalnızca tamamlanmış dönemlerin sonuçları
+                madalya tablosuna dahil edilir.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="card table-card">
+
+            <table>
+
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Oyuncu</th>
+                  <th>🥇</th>
+                  <th>🥈</th>
+                  <th>🥉</th>
+                  <th>Toplam</th>
+                </tr>
+              </thead>
+
+              <tbody id="medalBody">
+
+                <tr>
+                  <td>1</td>
+                  <td>Tarık Buğra Gedikli</td>
+                  <td>1</td>
+                  <td>0</td>
+                  <td>0</td>
+                  <td class="points">1</td>
+                </tr>
+
+                <tr>
+                  <td>2</td>
+                  <td>Umut İncirkuş</td>
+                  <td>0</td>
+                  <td>1</td>
+                  <td>0</td>
+                  <td class="points">1</td>
+                </tr>
+
+                <tr>
+                  <td>3</td>
+                  <td>Mertcan Şahin</td>
+                  <td>0</td>
+                  <td>0</td>
+                  <td>1</td>
+                  <td class="points">1</td>
+                </tr>
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </section>
+
+        <!-- PUANLAMA PANELİ -->
+
+        <section
+          id="rulesPanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                ⚙️ Puanlama Sistemi
+              </h2>
+
+              <p>
+                Her maçta toplam 300 puanlık üç ayrı
+                ödül havuzu bulunur.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="rule-grid">
+
+            <article class="card rule score">
+
+              <b>
+                150
+              </b>
+
+              <h3>
+                Tam Skor Havuzu
+              </h3>
+
+              <p>
+                Tam skoru doğru tahmin eden oyuncular
+                arasında eşit olarak bölünür.
+              </p>
+
+              <small>
+                Bilen oyuncu yoksa havuz puanı yanar.
+              </small>
+
+            </article>
+
+            <article class="card rule side">
+
+              <b>
+                100
+              </b>
+
+              <h3>
+                Taraf Havuzu
+              </h3>
+
+              <p>
+                Maç sonucunu 1, X veya 2 olarak doğru
+                tahmin eden oyuncular arasında eşit bölünür.
+              </p>
+
+              <small>
+                Bilen oyuncu yoksa havuz puanı yanar.
+              </small>
+
+            </article>
+
+            <article class="card rule ou">
+
+              <b>
+                50
+              </b>
+
+              <h3>
+                Alt / Üst Havuzu
+              </h3>
+
+              <p>
+                Toplam gol sayısının 2,5 altı veya üstü
+                olduğunu doğru tahmin edenler arasında bölünür.
+              </p>
+
+              <small>
+                Bilen oyuncu yoksa havuz puanı yanar.
+              </small>
+
+            </article>
+
+          </div>
+
+        </section>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite">
+  </div>
+
+</body>
+
+</html>
 
