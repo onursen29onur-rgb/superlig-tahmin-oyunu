@@ -1,675 +1,1547 @@
-<!doctype html>
-<html lang="tr" data-theme="dark">
+const SUPABASE_URL =
+  "https://xmdbbvhnzsswqcqibwax.supabase.co";
 
-<head>
-  <meta charset="utf-8">
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtZGJidmhuenNzd3FjcWlid2F4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NjQ5ODUsImV4cCI6MjEwNTE0MDk4NX0.FkHURLNFSC6GI_tyO54CXOj_XX30kTlLQ9e9YsboAns";
 
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1,viewport-fit=cover"
-  >
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
 
-  <meta
-    name="theme-color"
-    content="#071127"
-  >
+const $ = (id) =>
+  document.getElementById(id);
 
-  <title>Süper Lig Tahmin Oyunu</title>
+let players = [];
+let matches = [];
+let periodRows = [];
 
-  <link
-    rel="stylesheet"
-    href="style.css"
-  >
+let currentPlayer = null;
+let activeWeek = null;
+let activePeriod = null;
 
-  <script
-    defer
-    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-  </script>
+/* ---------------------------------
+   GENEL YARDIMCI FONKSİYONLAR
+---------------------------------- */
 
-  <script
-    defer
-    src="app.js">
-  </script>
-</head>
+function toast(message) {
 
-<body>
+  const toastElement = $("toast");
 
-  <div class="app-shell">
+  if (!toastElement) {
+    return;
+  }
 
-    <header class="topbar">
+  toastElement.textContent = message;
+  toastElement.classList.add("show");
 
-      <div class="brand">
+  setTimeout(() => {
+    toastElement.classList.remove("show");
+  }, 2500);
+}
 
-        <span class="ball">
-          ⚽
-        </span>
+function numberTR(value) {
 
-        <div>
-          <strong>Süper Lig Tahmin</strong>
-          <small>2026/27 Sezonu</small>
-        </div>
+  return Number(value || 0)
+    .toLocaleString(
+      "tr-TR",
+      {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 2
+      }
+    );
+}
 
-      </div>
+function rankLabel(index) {
 
-      <div class="top-actions">
+  if (index === 0) {
+    return "🥇";
+  }
 
-        <span
-          id="connectionBadge"
-          class="status offline">
-          Bağlantı bekleniyor
-        </span>
+  if (index === 1) {
+    return "🥈";
+  }
 
-        <button
-          id="themeBtn"
-          class="icon-btn"
-          type="button"
-          aria-label="Temayı değiştir">
-          ☀
-        </button>
+  if (index === 2) {
+    return "🥉";
+  }
 
-      </div>
+  return index + 1;
+}
 
-    </header>
+function periodStart(periodNumber) {
 
-    <main class="container">
+  return (
+    (periodNumber - 1) * 4
+  ) + 1;
+}
 
-      <!-- OYUNCU GİRİŞİ -->
+function periodEnd(periodNumber) {
 
-      <section
-        id="loginCard"
-        class="card login-card">
+  return Math.min(
+    periodNumber * 4,
+    38
+  );
+}
 
-        <span class="eyebrow">
-          OYUNCU GİRİŞİ
-        </span>
+/* ---------------------------------
+   OYUNCULAR
+---------------------------------- */
 
-        <h1>
-          Süper Lig Tahmin Oyunu
-        </h1>
+async function loadPlayers() {
 
-        <p>
-          Oyuncunu seçerek haftalık tahminlerini girebilir,
-          genel klasmanı ve dönem sıralamalarını takip edebilirsin.
-        </p>
+  const {
+    data,
+    error
+  } =
+    await supabaseClient
+      .from("players")
+      .select("*")
+      .order(
+        "total_points",
+        {
+          ascending: false
+        }
+      );
 
-        <label for="playerSelect">
-          Oyuncu
-        </label>
+  if (error) {
 
-        <select id="playerSelect">
-          <option value="">
-            Oyuncu seç...
-          </option>
-        </select>
+    console.error(
+      "Oyuncular yüklenemedi:",
+      error
+    );
 
-        <button
-          id="loginBtn"
-          class="btn primary"
-          type="button">
-          Devam Et
-        </button>
+    toast(
+      "Oyuncular yüklenemedi"
+    );
 
-        <p class="security-note">
-          Oyuncu seçimiyle giriş yapılır.
-          Tahminler haftanın ilk maçı başladığında otomatik olarak kapanır.
-        </p>
+    return;
+  }
 
-      </section>
+  players = data || [];
 
-      <!-- OYUN ALANI -->
+  $("playerSelect").innerHTML =
+    '<option value="">Oyuncu seç...</option>' +
+    players
+      .map(player => `
+        <option value="${player.id}">
+          ${player.name}
+        </option>
+      `)
+      .join("");
 
-      <section
-        id="gameArea"
-        class="hidden">
+  renderLeaderboard();
+}
 
-        <div class="welcome-row">
+/* ---------------------------------
+   MAÇLAR VE AKTİF HAFTA
+---------------------------------- */
 
-          <div>
+async function loadMatches() {
+
+  const {
+    data,
+    error
+  } =
+    await supabaseClient
+      .from("matches")
+      .select("*")
+      .neq(
+        "home_team",
+        "HISTORICAL"
+      )
+      .order(
+        "week",
+        {
+          ascending: true
+        }
+      )
+      .order(
+        "kickoff_at",
+        {
+          ascending: true
+        }
+      );
+
+  if (error) {
+
+    console.error(
+      "Maçlar yüklenemedi:",
+      error
+    );
+
+    toast(
+      "Maçlar yüklenemedi"
+    );
+
+    return;
+  }
+
+  const allMatches =
+    data || [];
+
+  if (!allMatches.length) {
+
+    matches = [];
+    activeWeek = null;
+    activePeriod = null;
+
+    if ($("weekSummary")) {
+      $("weekSummary").textContent =
+        "Aktif hafta için maç bulunamadı.";
+    }
+
+    return;
+  }
+
+  const now =
+    Date.now();
+
+  const futureMatches =
+    allMatches.filter(match => {
+
+      const kickoffTime =
+        new Date(
+          match.kickoff_at
+        ).getTime();
+
+      return kickoffTime >= now;
+    });
+
+  if (futureMatches.length) {
+
+    activeWeek =
+      Math.min(
+        ...futureMatches.map(
+          match =>
+            Number(match.week)
+        )
+      );
+
+  } else {
+
+    activeWeek =
+      Math.max(
+        ...allMatches.map(
+          match =>
+            Number(match.week)
+        )
+      );
+  }
+
+  activePeriod =
+    Math.floor(
+      (activeWeek - 1) / 4
+    ) + 1;
+
+  matches =
+    allMatches.filter(
+      match =>
+        Number(match.week) ===
+        Number(activeWeek)
+    );
+
+  if ($("activeWeekEyebrow")) {
+
+    $("activeWeekEyebrow")
+      .textContent =
+      `${activeWeek}. HAFTA`;
+  }
+
+  if ($("matchesTitle")) {
+
+    $("matchesTitle")
+      .textContent =
+      `${activeWeek}. Hafta Maçları`;
+  }
+
+  console.log(
+    "Aktif hafta:",
+    activeWeek
+  );
+
+  console.log(
+    "Aktif dönem:",
+    activePeriod
+  );
+
+  console.log(
+    "Aktif hafta maç sayısı:",
+    matches.length
+  );
+}
+
+/* ---------------------------------
+   GENEL KLASMAN
+---------------------------------- */
+
+function renderLeaderboard() {
+
+  const sortedPlayers =
+    [...players].sort(
+      (firstPlayer, secondPlayer) =>
+        Number(
+          secondPlayer.total_points || 0
+        ) -
+        Number(
+          firstPlayer.total_points || 0
+        )
+    );
+
+  const topScore =
+    sortedPlayers.length
+      ? Number(
+          sortedPlayers[0]
+            .total_points || 0
+        )
+      : 0;
+
+  $("leaderBody").innerHTML =
+    sortedPlayers
+      .map(
+        (player, index) => {
+
+          const playerPoints =
+            Number(
+              player.total_points || 0
+            );
+
+          const difference =
+            topScore - playerPoints;
+
+          return `
+            <tr>
+
+              <td>
+                ${rankLabel(index)}
+              </td>
+
+              <td>
+                ${player.name}
+              </td>
+
+              <td class="points">
+                ${numberTR(playerPoints)}
+              </td>
+
+              <td>
+                ${
+                  index === 0
+                    ? "-"
+                    : numberTR(difference)
+                }
+              </td>
+
+            </tr>
+          `;
+        }
+      )
+      .join("");
+
+  $("podium").innerHTML =
+    sortedPlayers
+      .slice(0, 3)
+      .map(
+        (player, index) => `
+          <div class="pod">
+
+            <div class="medal">
+              ${
+                [
+                  "🥇",
+                  "🥈",
+                  "🥉"
+                ][index]
+              }
+            </div>
+
+            <div class="name">
+              ${player.name}
+            </div>
+
+            <div class="points">
+              ${numberTR(
+                player.total_points
+              )}
+            </div>
+
+          </div>
+        `
+      )
+      .join("");
+}
+
+/* ---------------------------------
+   DÖNEM PUANLARI
+---------------------------------- */
+
+async function loadPeriodLeaderboard() {
+
+  const {
+    data,
+    error
+  } =
+    await supabaseClient
+      .from(
+        "period_leaderboard"
+      )
+      .select(
+        "id,name,period_no,total_points"
+      )
+      .order(
+        "period_no",
+        {
+          ascending: true
+        }
+      )
+      .order(
+        "total_points",
+        {
+          ascending: false
+        }
+      );
+
+  if (error) {
+
+    console.error(
+      "Dönem sıralamaları yüklenemedi:",
+      error
+    );
+
+    toast(
+      "Dönem sıralamaları yüklenemedi"
+    );
+
+    return;
+  }
+
+  periodRows =
+    data || [];
+
+  renderPeriodViews();
+}
+
+function rowsForPeriod(
+  periodNumber
+) {
+
+  const pointsByPlayerId =
+    new Map(
+      periodRows
+        .filter(
+          row =>
+            Number(row.period_no) ===
+            Number(periodNumber)
+        )
+        .map(
+          row => [
+            String(row.id),
+            Number(
+              row.total_points || 0
+            )
+          ]
+        )
+    );
+
+  return players
+    .map(player => ({
+      id: player.id,
+      name: player.name,
+      total_points:
+        pointsByPlayerId.get(
+          String(player.id)
+        ) || 0
+    }))
+    .sort(
+      (firstPlayer, secondPlayer) =>
+        secondPlayer.total_points -
+        firstPlayer.total_points
+    );
+}
+
+function renderPeriodViews() {
+
+  if (!activePeriod) {
+    return;
+  }
+
+  const startWeek =
+    periodStart(
+      activePeriod
+    );
+
+  const endWeek =
+    periodEnd(
+      activePeriod
+    );
+
+  const activePeriodRows =
+    rowsForPeriod(
+      activePeriod
+    );
+
+  const activePeriodTopScore =
+    activePeriodRows.length
+      ? activePeriodRows[0]
+          .total_points
+      : 0;
+
+  $("activePeriodTitle")
+    .textContent =
+    `⚡ Aktif Dönem: Hafta ${startWeek}-${endWeek}`;
+
+  $("activePeriodDescription")
+    .textContent =
+    `Dönem ${activePeriod} canlı sıralaması. İlk üç oyuncu kürsüde gösterilir.`;
+
+  $("periodBody").innerHTML =
+    activePeriodRows
+      .map(
+        (player, index) => {
+
+          const difference =
+            activePeriodTopScore -
+            player.total_points;
+
+          return `
+            <tr>
+
+              <td>
+                ${rankLabel(index)}
+              </td>
+
+              <td>
+                ${player.name}
+              </td>
+
+              <td class="points">
+                ${numberTR(
+                  player.total_points
+                )}
+              </td>
+
+              <td>
+                ${
+                  index === 0
+                    ? "-"
+                    : numberTR(difference)
+                }
+              </td>
+
+            </tr>
+          `;
+        }
+      )
+      .join("");
+
+  $("periodPodium").innerHTML =
+    activePeriodRows
+      .slice(0, 3)
+      .map(
+        (player, index) => `
+          <div class="pod">
+
+            <div class="medal">
+              ${
+                [
+                  "🥇",
+                  "🥈",
+                  "🥉"
+                ][index]
+              }
+            </div>
+
+            <div class="name">
+              ${player.name}
+            </div>
+
+            <div class="points">
+              ${numberTR(
+                player.total_points
+              )}
+            </div>
+
+          </div>
+        `
+      )
+      .join("");
+
+  const periodNumbers =
+    [
+      ...new Set(
+        periodRows.map(
+          row =>
+            Number(row.period_no)
+        )
+      )
+    ]
+      .filter(
+        periodNumber =>
+          Number.isFinite(
+            periodNumber
+          )
+      )
+      .sort(
+        (firstPeriod, secondPeriod) =>
+          firstPeriod -
+          secondPeriod
+      );
+
+  renderPeriodPodiums(
+    periodNumbers
+  );
+
+  renderMedals(
+    periodNumbers
+  );
+}
+
+/* ---------------------------------
+   DÖNEM KÜRSÜLERİ
+---------------------------------- */
+
+function renderPeriodPodiums(
+  periodNumbers
+) {
+
+  $("periodPodiums").innerHTML =
+    periodNumbers
+      .map(periodNumber => {
+
+        const fullPeriodRows =
+          rowsForPeriod(
+            periodNumber
+          );
+
+        const topThree =
+          fullPeriodRows.slice(
+            0,
+            3
+          );
+
+        const completed =
+          periodEnd(periodNumber) <
+          activeWeek;
+
+        const statusText =
+          completed
+            ? "TAMAMLANDI"
+            : "DEVAM EDİYOR";
+
+        const cardClass =
+          completed
+            ? "score"
+            : "side";
+
+        return `
+          <article
+            class="card rule ${cardClass}">
 
             <span class="eyebrow">
-              AKTİF HAFTA
+              ${statusText}
             </span>
 
-            <h1>
-              Merhaba,
-              <span id="activePlayerName"></span>
-            </h1>
+            <h3>
+              Dönem ${periodNumber}
+            </h3>
 
-            <p id="weekSummary">
-              Tahminlerin yükleniyor...
+            <p>
+              Hafta
+              ${periodStart(periodNumber)}
+              -
+              ${periodEnd(periodNumber)}
             </p>
 
-          </div>
+            <div class="period-ranking">
 
-          <button
-            id="logoutBtn"
-            class="btn ghost"
-            type="button">
-            Oyuncu Değiştir
-          </button>
+              ${
+                topThree
+                  .map(
+                    (player, index) => `
+                      <p>
 
-        </div>
+                        <span>
+                          ${
+                            [
+                              "🥇",
+                              "🥈",
+                              "🥉"
+                            ][index]
+                          }
+                        </span>
 
-        <!-- ANA MENÜ -->
+                        <strong>
+                          ${player.name}
+                        </strong>
 
-        <nav
-          class="tabs"
-          aria-label="Uygulama bölümleri">
+                        <span>
+                          ${numberTR(
+                            player.total_points
+                          )}
+                          puan
+                        </span>
 
-          <button
-            class="tab active"
-            data-tab="predictions"
-            type="button">
-            Tahminlerim
-          </button>
-
-          <button
-            class="tab"
-            data-tab="leaderboard"
-            type="button">
-            🏆 Genel Klasman
-          </button>
-
-          <button
-            class="tab"
-            data-tab="period"
-            type="button">
-            ⚡ Aktif Dönem
-          </button>
-
-          <button
-            class="tab"
-            data-tab="periodTopThree"
-            type="button">
-            🥇 Dönem İlk 3
-          </button>
-
-          <button
-            class="tab"
-            data-tab="rules"
-            type="button">
-            ⚙️ Puanlama
-          </button>
-
-        </nav>
-
-        <!-- TAHMİNLER PANELİ -->
-
-        <section
-          id="predictionsPanel"
-          class="tab-panel">
-
-          <div class="section-head">
-
-            <div>
-
-              <h2>
-                Haftanın Maçları
-              </h2>
-
-              <p>
-                Skor tahminlerini girerek maçları tek tek
-                veya toplu olarak kaydedebilirsin.
-              </p>
+                      </p>
+                    `
+                  )
+                  .join("")
+              }
 
             </div>
 
-            <button
-              id="saveAllBtn"
-              class="btn primary"
-              type="button">
-              Tümünü Kaydet
-            </button>
-
-          </div>
-
-          <div
-            id="matchGrid"
-            class="match-grid">
-          </div>
-
-        </section>
-
-        <!-- GENEL KLASMAN PANELİ -->
-
-        <section
-          id="leaderboardPanel"
-          class="tab-panel hidden">
-
-          <div class="section-head">
-
-            <div>
-
-              <h2>
-                🏆 Genel Klasman
-              </h2>
-
-              <p>
-                Sezonun başlangıcından itibaren kazanılan
-                tüm puanların toplamı.
-              </p>
-
-            </div>
-
-            <button
-              id="refreshBtn"
-              class="btn ghost"
-              type="button">
-              Yenile
-            </button>
-
-          </div>
-
-          <div
-            id="podium"
-            class="podium">
-          </div>
-
-          <div class="card table-card">
-
-            <table>
-
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Oyuncu</th>
-                  <th>Puan</th>
-                  <th>Lidere Fark</th>
-                </tr>
-              </thead>
-
-              <tbody id="leaderBody">
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </section>
-
-        <!-- AKTİF DÖNEM PANELİ -->
-
-        <section
-          id="periodPanel"
-          class="tab-panel hidden">
-
-          <div class="section-head">
-
-            <div>
-
-              <span class="eyebrow">
-                DÖNEM 2
-              </span>
-
-              <h2 id="activePeriodTitle">
-                ⚡ Aktif Dönem: Hafta 5-8
-              </h2>
-
-              <p>
-                Yalnızca aktif dört haftalık dönemde
-                kazanılan puanların sıralaması.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div
-            id="periodPodium"
-            class="podium">
-          </div>
-
-          <div class="card table-card">
-
-            <table>
-
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Oyuncu</th>
-                  <th>Dönem Puanı</th>
-                  <th>Lidere Fark</th>
-                </tr>
-              </thead>
-
-              <tbody id="periodBody">
-
-                <tr>
-                  <td>🥇</td>
-                  <td>Tarık Buğra Gedikli</td>
-                  <td class="points">361,7</td>
-                  <td>-</td>
-                </tr>
-
-                <tr>
-                  <td>🥈</td>
-                  <td>Sinan Kalyoncu</td>
-                  <td class="points">358,4</td>
-                  <td>3,3</td>
-                </tr>
-
-                <tr>
-                  <td>🥉</td>
-                  <td>Umut İncirkuş</td>
-                  <td class="points">240,9</td>
-                  <td>120,8</td>
-                </tr>
-
-                <tr>
-                  <td>4</td>
-                  <td>Onur Şen</td>
-                  <td class="points">224,2</td>
-                  <td>137,5</td>
-                </tr>
-
-                <tr>
-                  <td>5</td>
-                  <td>Mertcan Şahin</td>
-                  <td class="points">178,4</td>
-                  <td>183,3</td>
-                </tr>
-
-                <tr>
-                  <td>6</td>
-                  <td>Can Eren Kolasayın</td>
-                  <td class="points">136,7</td>
-                  <td>225,0</td>
-                </tr>
-
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </section>
-
-        <!-- DÖNEM İLK 3 PANELİ -->
-
-        <section
-          id="periodTopThreePanel"
-          class="tab-panel hidden">
-
-          <div class="section-head">
-
-            <div>
-
-              <h2>
-                🥇 Dönem İlk 3
-              </h2>
-
-              <p>
-                Her dört haftalık dönemde ilk üç sırayı
-                alan oyuncular.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div
-            id="periodTopThreeContainer"
-            class="rule-grid">
-
-            <!-- DÖNEM 1 -->
-
-            <article class="card rule score">
-
-              <span class="eyebrow">
-                TAMAMLANDI
-              </span>
-
-              <h3>
-                Dönem 1
-              </h3>
-
-              <p>
-                Hafta 1-4
-              </p>
-
-              <div class="period-ranking">
-
-                <p>
-                  🥇
-                  <strong>Tarık Buğra Gedikli</strong>
-                  <span>1192,7 puan</span>
-                </p>
-
-                <p>
-                  🥈
-                  <strong>Umut İncirkuş</strong>
-                  <span>1087,8 puan</span>
-                </p>
-
-                <p>
-                  🥉
-                  <strong>Mertcan Şahin</strong>
-                  <span>1044,3 puan</span>
-                </p>
-
-              </div>
-
-            </article>
-
-            <!-- DÖNEM 2 -->
-
-            <article class="card rule side">
-
-              <span class="eyebrow">
-                DEVAM EDİYOR
-              </span>
-
-              <h3>
-                Dönem 2
-              </h3>
-
-              <p>
-                Hafta 5-8
-              </p>
-
-              <div class="period-ranking">
-
-                <p>
-                  🥇
-                  <strong>Tarık Buğra Gedikli</strong>
-                  <span>361,7 puan</span>
-                </p>
-
-                <p>
-                  🥈
-                  <strong>Sinan Kalyoncu</strong>
-                  <span>358,4 puan</span>
-                </p>
-
-                <p>
-                  🥉
-                  <strong>Umut İncirkuş</strong>
-                  <span>240,9 puan</span>
-                </p>
-
-              </div>
-
-            </article>
-
-          </div>
-
-          <!-- MADALYA ÖZETİ -->
-
-          <div class="section-head">
-
-            <div>
-
-              <h2>
-                🏅 Tamamlanan Dönem Madalyaları
-              </h2>
-
-              <p>
-                Yalnızca tamamlanmış dönemlerin sonuçları
-                madalya tablosuna dahil edilir.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div class="card table-card">
-
-            <table>
-
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Oyuncu</th>
-                  <th>🥇</th>
-                  <th>🥈</th>
-                  <th>🥉</th>
-                  <th>Toplam</th>
-                </tr>
-              </thead>
-
-              <tbody id="medalBody">
-
-                <tr>
-                  <td>1</td>
-                  <td>Tarık Buğra Gedikli</td>
-                  <td>1</td>
-                  <td>0</td>
-                  <td>0</td>
-                  <td class="points">1</td>
-                </tr>
-
-                <tr>
-                  <td>2</td>
-                  <td>Umut İncirkuş</td>
-                  <td>0</td>
-                  <td>1</td>
-                  <td>0</td>
-                  <td class="points">1</td>
-                </tr>
-
-                <tr>
-                  <td>3</td>
-                  <td>Mertcan Şahin</td>
-                  <td>0</td>
-                  <td>0</td>
-                  <td>1</td>
-                  <td class="points">1</td>
-                </tr>
-
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </section>
-
-        <!-- PUANLAMA PANELİ -->
-
-        <section
-          id="rulesPanel"
-          class="tab-panel hidden">
-
-          <div class="section-head">
-
-            <div>
-
-              <h2>
-                ⚙️ Puanlama Sistemi
-              </h2>
-
-              <p>
-                Her maçta toplam 300 puanlık üç ayrı
-                ödül havuzu bulunur.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div class="rule-grid">
-
-            <article class="card rule score">
-
-              <b>
-                150
-              </b>
-
-              <h3>
-                Tam Skor Havuzu
-              </h3>
-
-              <p>
-                Tam skoru doğru tahmin eden oyuncular
-                arasında eşit olarak bölünür.
-              </p>
-
-              <small>
-                Bilen oyuncu yoksa havuz puanı yanar.
-              </small>
-
-            </article>
-
-            <article class="card rule side">
-
-              <b>
-                100
-              </b>
-
-              <h3>
-                Taraf Havuzu
-              </h3>
-
-              <p>
-                Maç sonucunu 1, X veya 2 olarak doğru
-                tahmin eden oyuncular arasında eşit bölünür.
-              </p>
-
-              <small>
-                Bilen oyuncu yoksa havuz puanı yanar.
-              </small>
-
-            </article>
-
-            <article class="card rule ou">
-
-              <b>
-                50
-              </b>
-
-              <h3>
-                Alt / Üst Havuzu
-              </h3>
-
-              <p>
-                Toplam gol sayısının 2,5 altı veya üstü
-                olduğunu doğru tahmin edenler arasında bölünür.
-              </p>
-
-              <small>
-                Bilen oyuncu yoksa havuz puanı yanar.
-              </small>
-
-            </article>
-
-          </div>
-
-        </section>
-
-      </section>
-
-    </main>
-
-  </div>
-
-  <div
-    id="toast"
-    class="toast"
-    role="status"
-    aria-live="polite">
-  </div>
-
-</body>
-
-</html>
-
+          </article>
+        `;
+      })
+      .join("");
+}
+
+/* ---------------------------------
+   MADALYA TABLOSU
+---------------------------------- */
+
+function renderMedals(
+  periodNumbers
+) {
+
+  const medals =
+    new Map(
+      players.map(
+        player => [
+          String(player.id),
+          {
+            name: player.name,
+            gold: 0,
+            silver: 0,
+            bronze: 0
+          }
+        ]
+      )
+    );
+
+  const completedPeriods =
+    periodNumbers.filter(
+      periodNumber =>
+        periodEnd(periodNumber) <
+        activeWeek
+    );
+
+  completedPeriods
+    .forEach(periodNumber => {
+
+      const topThree =
+        rowsForPeriod(
+          periodNumber
+        ).slice(
+          0,
+          3
+        );
+
+      topThree.forEach(
+        (player, index) => {
+
+          const medalRecord =
+            medals.get(
+              String(player.id)
+            );
+
+          if (!medalRecord) {
+            return;
+          }
+
+          if (index === 0) {
+            medalRecord.gold++;
+          }
+
+          if (index === 1) {
+            medalRecord.silver++;
+          }
+
+          if (index === 2) {
+            medalRecord.bronze++;
+          }
+        }
+      );
+    });
+
+  const medalRows =
+    [...medals.values()]
+      .sort(
+        (
+          firstPlayer,
+          secondPlayer
+        ) => {
+
+          if (
+            secondPlayer.gold !==
+            firstPlayer.gold
+          ) {
+            return (
+              secondPlayer.gold -
+              firstPlayer.gold
+            );
+          }
+
+          if (
+            secondPlayer.silver !==
+            firstPlayer.silver
+          ) {
+            return (
+              secondPlayer.silver -
+              firstPlayer.silver
+            );
+          }
+
+          if (
+            secondPlayer.bronze !==
+            firstPlayer.bronze
+          ) {
+            return (
+              secondPlayer.bronze -
+              firstPlayer.bronze
+            );
+          }
+
+          return firstPlayer.name
+            .localeCompare(
+              secondPlayer.name,
+              "tr"
+            );
+        }
+      );
+
+  $("medalBody").innerHTML =
+    medalRows
+      .map(
+        (player, index) => {
+
+          const totalMedals =
+            player.gold +
+            player.silver +
+            player.bronze;
+
+          return `
+            <tr>
+
+              <td>
+                ${index + 1}
+              </td>
+
+              <td>
+                ${player.name}
+              </td>
+
+              <td>
+                ${player.gold}
+              </td>
+
+              <td>
+                ${player.silver}
+              </td>
+
+              <td>
+                ${player.bronze}
+              </td>
+
+              <td class="points">
+                ${totalMedals}
+              </td>
+
+            </tr>
+          `;
+        }
+      )
+      .join("");
+}
+
+/* ---------------------------------
+   HAFTA KİLİDİ
+---------------------------------- */
+
+function weekLockTime() {
+
+  if (!matches.length) {
+    return null;
+  }
+
+  const kickoffTimes =
+    matches.map(
+      match =>
+        new Date(
+          match.kickoff_at
+        ).getTime()
+    );
+
+  return Math.min(
+    ...kickoffTimes
+  );
+}
+
+function isWeekLocked() {
+
+  const lockTime =
+    weekLockTime();
+
+  if (lockTime === null) {
+    return false;
+  }
+
+  return (
+    Date.now() >= lockTime
+  );
+}
+
+/* ---------------------------------
+   TAHMİNLERİ YÜKLEME
+---------------------------------- */
+
+async function loadPredictions() {
+
+  const {
+    data: savedPredictions,
+    error
+  } =
+    await supabaseClient
+      .from("predictions")
+      .select("*")
+      .eq(
+        "player_id",
+        currentPlayer
+      );
+
+  if (error) {
+
+    console.error(
+      "Tahminler yüklenemedi:",
+      error
+    );
+
+    toast(
+      "Tahminler yüklenemedi"
+    );
+
+    return;
+  }
+
+  const saved =
+    savedPredictions || [];
+
+  $("matchGrid").innerHTML =
+    "";
+
+  for (const match of matches) {
+
+    const prediction =
+      saved.find(
+        savedPrediction =>
+          String(
+            savedPrediction.match_id
+          ) ===
+          String(match.id)
+      );
+
+    const locked =
+      isWeekLocked();
+
+    const card =
+      document.createElement(
+        "div"
+      );
+
+    card.className =
+      "match-card";
+
+    card.innerHTML = `
+
+      <div class="match-meta">
+
+        <span>
+          ${match.week}. Hafta
+        </span>
+
+        <span>
+          ${
+            new Date(
+              match.kickoff_at
+            ).toLocaleString(
+              "tr-TR"
+            )
+          }
+        </span>
+
+      </div>
+
+      <div class="teams">
+
+        <span class="team">
+          ${match.home_team}
+        </span>
+
+        <span class="versus">
+          VS
+        </span>
+
+        <span class="team">
+          ${match.away_team}
+        </span>
+
+      </div>
+
+      <div class="score-entry">
+
+        <input
+          type="number"
+          min="0"
+          id="h_${match.id}"
+          value="${
+            prediction?.home_prediction
+            ?? ""
+          }"
+          ${
+            locked
+              ? "disabled"
+              : ""
+          }
+        >
+
+        <span>
+          -
+        </span>
+
+        <input
+          type="number"
+          min="0"
+          id="a_${match.id}"
+          value="${
+            prediction?.away_prediction
+            ?? ""
+          }"
+          ${
+            locked
+              ? "disabled"
+              : ""
+          }
+        >
+
+      </div>
+
+      <div class="match-footer">
+
+        <span
+          class="lock-state ${
+            locked
+              ? "locked"
+              : (
+                  prediction
+                    ? "saved"
+                    : ""
+                )
+          }">
+
+          ${
+            locked
+              ? "🔒 Hafta kapandı"
+              : (
+                  prediction
+                    ? "✓ Kaydedildi"
+                    : "Tahmin bekleniyor"
+                )
+          }
+
+        </span>
+
+        <button
+          class="btn primary"
+          onclick="savePrediction(${match.id})"
+          ${
+            locked
+              ? "disabled"
+              : ""
+          }>
+          Kaydet
+        </button>
+
+      </div>
+    `;
+
+    $("matchGrid")
+      .appendChild(card);
+  }
+
+  const lockTime =
+    weekLockTime();
+
+  const savedForActiveWeek =
+    saved
+      .filter(savedPrediction =>
+        matches.some(
+          match =>
+            String(match.id) ===
+            String(
+              savedPrediction.match_id
+            )
+        )
+      )
+      .length;
+
+  if (!matches.length) {
+
+    $("weekSummary")
+      .textContent =
+      "Aktif hafta için maç bulunamadı.";
+
+    return;
+  }
+
+  if (isWeekLocked()) {
+
+    $("weekSummary")
+      .textContent =
+      `${matches.length} maç · ${savedForActiveWeek} tahmin kayıtlı · 🔒 Hafta kapandı`;
+
+    return;
+  }
+
+  $("weekSummary")
+    .textContent =
+    `${matches.length} maç · ${savedForActiveWeek} tahmin kayıtlı · Son tahmin: ${
+      new Date(
+        lockTime
+      ).toLocaleString(
+        "tr-TR"
+      )
+    }`;
+}
+
+/* ---------------------------------
+   TEK TAHMİN KAYDETME
+---------------------------------- */
+
+window.savePrediction =
+  async function(matchId) {
+
+    if (!currentPlayer) {
+
+      toast(
+        "Oyuncu seçiniz"
+      );
+
+      return false;
+    }
+
+    if (isWeekLocked()) {
+
+      toast(
+        "Hafta başladı, tahminler kapandı"
+      );
+
+      return false;
+    }
+
+    const homeInput =
+      $(`h_${matchId}`);
+
+    const awayInput =
+      $(`a_${matchId}`);
+
+    if (
+      !homeInput ||
+      !awayInput ||
+      homeInput.value === "" ||
+      awayInput.value === ""
+    ) {
+
+      toast(
+        "Skor giriniz"
+      );
+
+      return false;
+    }
+
+    const homePrediction =
+      Number(
+        homeInput.value
+      );
+
+    const awayPrediction =
+      Number(
+        awayInput.value
+      );
+
+    if (
+      !Number.isInteger(
+        homePrediction
+      ) ||
+      !Number.isInteger(
+        awayPrediction
+      ) ||
+      homePrediction < 0 ||
+      awayPrediction < 0
+    ) {
+
+      toast(
+        "Geçerli bir skor giriniz"
+      );
+
+      return false;
+    }
+
+    const payload = {
+
+      player_id:
+        Number(currentPlayer),
+
+      match_id:
+        Number(matchId),
+
+      home_prediction:
+        homePrediction,
+
+      away_prediction:
+        awayPrediction,
+
+      updated_at:
+        new Date()
+          .toISOString()
+    };
+
+    const {
+      error
+    } =
+      await supabaseClient
+        .from("predictions")
+        .upsert(
+          payload,
+          {
+            onConflict:
+              "player_id,match_id"
+          }
+        );
+
+    if (error) {
+
+      console.error(
+        "Tahmin kaydedilemedi:",
+        error
+      );
+
+      toast(
+        "Tahmin kaydedilemedi"
+      );
+
+      return false;
+    }
+
+    const matchCard =
+      homeInput.closest(
+        ".match-card"
+      );
+
+    const state =
+      matchCard
+        ?.querySelector(
+          ".lock-state"
+        );
+
+    if (state) {
+
+      state.textContent =
+        "✓ Kaydedildi";
+
+      state.className =
+        "lock-state saved";
+    }
+
+    return true;
+  };
+
+/* ---------------------------------
+   TÜM TAHMİNLERİ KAYDETME
+---------------------------------- */
+
+$("saveAllBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      if (isWeekLocked()) {
+
+        toast(
+          "Hafta başladı, tahminler kapandı"
+        );
+
+        return;
+      }
+
+      let savedCount = 0;
+      let skippedCount = 0;
+
+      for (
+        const match
+        of matches
+      ) {
+
+        const homeInput =
+          $(`h_${match.id}`);
+
+        const awayInput =
+          $(`a_${match.id}`);
+
+        if (
+          !homeInput ||
+          !awayInput ||
+          homeInput.value === "" ||
+          awayInput.value === ""
+        ) {
+
+          skippedCount++;
+
+          continue;
+        }
+
+        const saved =
+          await window
+            .savePrediction(
+              match.id
+            );
+
+        if (saved) {
+          savedCount++;
+        }
+      }
+
+      toast(
+        `${savedCount} tahmin kaydedildi, ${skippedCount} maç atlandı`
+      );
+
+      await loadPredictions();
+    }
+  );
+
+/* ---------------------------------
+   YENİLEME
+---------------------------------- */
+
+$("refreshBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      await loadPlayers();
+
+      await loadMatches();
+
+      await loadPeriodLeaderboard();
+
+      if (currentPlayer) {
+        await loadPredictions();
+      }
+
+      toast(
+        "Veriler yenilendi"
+      );
+    }
+  );
+
+/* ---------------------------------
+   OYUNCU GİRİŞİ
+---------------------------------- */
+
+$("loginBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      currentPlayer =
+        $("playerSelect").value;
+
+      if (!currentPlayer) {
+
+        toast(
+          "Oyuncu seçiniz"
+        );
+
+        return;
+      }
+
+      $("loginCard")
+        .classList
+        .add("hidden");
+
+      $("gameArea")
+        .classList
+        .remove("hidden");
+
+      const selectedPlayer =
+        players.find(
+          player =>
+            String(player.id) ===
+            String(currentPlayer)
+        );
+
+      $("activePlayerName")
+        .textContent =
+        selectedPlayer
+          ? selectedPlayer.name
+          : "";
+
+      await loadPredictions();
+    }
+  );
+
+/* ---------------------------------
+   OYUNCU DEĞİŞTİRME
+---------------------------------- */
+
+$("logoutBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      currentPlayer =
+        null;
+
+      $("gameArea")
+        .classList
+        .add("hidden");
+
+      $("loginCard")
+        .classList
+        .remove("hidden");
+    }
+  );
+
+/* ---------------------------------
+   TEMA
+---------------------------------- */
+
+$("themeBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const isLight =
+        document
+          .documentElement
+          .getAttribute(
+            "data-theme"
+          ) === "light";
+
+      document
+        .documentElement
+        .setAttribute(
+          "data-theme",
+          isLight
+            ? "dark"
+            : "light"
+        );
+
+      $("themeBtn")
+        .textContent =
+        isLight
+          ? "☀"
+          : "🌙";
+    }
+  );
+
+/* ---------------------------------
+   SEKME GEÇİŞLERİ
+---------------------------------- */
+
+document
+  .querySelectorAll(".tab")
+  .forEach(button => {
+
+    button.addEventListener(
+      "click",
+      () => {
+
+        document
+          .querySelectorAll(".tab")
+          .forEach(tab => {
+
+            tab.classList
+              .remove("active");
+          });
+
+        button.classList
+          .add("active");
+
+        document
+          .querySelectorAll(
+            ".tab-panel"
+          )
+          .forEach(panel => {
+
+            panel.classList
+              .add("hidden");
+          });
+
+        const targetPanel =
+          $(
+            `${button.dataset.tab}Panel`
+          );
+
+        if (targetPanel) {
+
+          targetPanel
+            .classList
+            .remove("hidden");
+        }
+      }
+    );
+  });
+
+/* ---------------------------------
+   UYGULAMAYI BAŞLATMA
+---------------------------------- */
+
+(async () => {
+
+  $("connectionBadge")
+    .textContent =
+    "Bağlanıyor...";
+
+  try {
+
+    /*
+      Sıralama önemli:
+      Önce oyuncular ve maçlar,
+      sonra dönem görünümü yüklenir.
+    */
+
+    await loadPlayers();
+
+    await loadMatches();
+
+    await loadPeriodLeaderboard();
+
+    $("connectionBadge")
+      .className =
+      "status online";
+
+    $("connectionBadge")
+      .textContent =
+      "Supabase bağlı";
+
+  } catch (error) {
+
+    console.error(
+      "Uygulama başlatılamadı:",
+      error
+    );
+
+    $("connectionBadge")
+      .className =
+      "status offline";
+
+    $("connectionBadge")
+      .textContent =
+      "Bağlantı hatası";
+
+    toast(
+      "Uygulama başlatılamadı"
+    );
+  }
+
+})();
