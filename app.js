@@ -208,7 +208,7 @@ async function loadPredictions(){
     card.innerHTML = `
 
       <div class="match-meta">
-        <span>6. Hafta</span>
+        <span>${match.week}. Hafta</span>
         <span>
           ${new Date(match.kickoff_at).toLocaleString("tr-TR")}
         </span>
