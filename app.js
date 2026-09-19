@@ -203,7 +203,6 @@ async function loadMatches() {
   }
 
   /*
-    DÜZELTME (1. Madde):
     Artık "gelecekte maçı olan hafta" değil,
     "TÜM maçları henüz FT (tamamlanmış) olmayan
     en küçük hafta numarası" aranıyor. Bu sayede
@@ -228,8 +227,6 @@ async function loadMatches() {
             Number(match.week) === weekNumber
         );
 
-      // Bu haftada FT olmayan (henüz bitmemiş)
-      // en az bir maç varsa, hafta hâlâ aktif sayılır.
       return weekMatches.some(
         match => match.status !== "FT"
       );
@@ -323,7 +320,6 @@ async function loadMatches() {
     completedMatches.length
   );
 
-  /* 2. Madde: Fikstür sekmesini de güncelle */
   renderFixtureWeekOptions();
 }
 
@@ -409,6 +405,13 @@ function renderFixtureList(weekNumber) {
                   minute: "2-digit"
                 });
 
+        const statusClass =
+          isFinished
+            ? "finished"
+            : match.status === "NS"
+              ? "upcoming"
+              : "live";
+
         const statusLabel =
           isFinished
             ? "✓ Tamamlandı"
@@ -417,11 +420,24 @@ function renderFixtureList(weekNumber) {
               : "🔴 Canlı";
 
         return `
-          <div class="fixture-row">
-            <span class="fixture-team">${match.home_team}</span>
-            <span class="fixture-score">${scoreDisplay}</span>
-            <span class="fixture-team">${match.away_team}</span>
-            <span class="fixture-status">${statusLabel}</span>
+          <div class="fixture-row ${statusClass}">
+
+            <span class="fixture-team home">
+              ${match.home_team}
+            </span>
+
+            <span class="fixture-score">
+              ${scoreDisplay}
+            </span>
+
+            <span class="fixture-team away">
+              ${match.away_team}
+            </span>
+
+            <span class="fixture-status ${statusClass}">
+              ${statusLabel}
+            </span>
+
           </div>
         `;
       })
@@ -1226,18 +1242,6 @@ async function loadMatchPoints(matchId) {
     </tr>
   `;
 
-  /*
-    GİZLİLİK KURALI:
-    "predictions" tablosuna artık RLS nedeniyle
-    doğrudan erişim yok. Bunun yerine güvenli
-    "get_week_predictions" fonksiyonunu (RPC)
-    çağırıyoruz. Bu maç zaten tamamlanmış (FT)
-    olduğu için, o haftanın ilk maçı da kesinlikle
-    başlamış demektir; fonksiyon bu durumda
-    haftanın TÜM oyuncularının tahminlerini
-    otomatik olarak açar.
-  */
-
   const [
     predictionResponse,
     pointResponse
@@ -1786,26 +1790,6 @@ function isWeekLocked() {
 
 async function loadPredictions() {
 
-  /*
-    GİZLİLİK KURALI:
-    Artık "predictions" tablosuna doğrudan
-    erişim yok (RLS aktif, politika yok).
-    Bunun yerine güvenli "get_week_predictions"
-    fonksiyonunu (RPC) çağırıyoruz.
-
-    Hafta henüz kilitlenmediyse (ilk maç
-    başlamadıysa), bu fonksiyon SADECE bizim
-    kendi player_id'mize ait tahminleri döner
-    - başkalarının tahminleri veritabanı
-    seviyesinde zaten gizlenmiş olur.
-
-    Hafta kilitlendiyse (ilk maç başladıysa),
-    fonksiyon herkesin tahminini döner; biz yine
-    de burada sadece kendi tahminimizi filtreleyip
-    kullanıyoruz çünkü bu ekran "benim tahminlerim"
-    formu.
-  */
-
   const {
     data: weekPredictions,
     error
@@ -2100,20 +2084,6 @@ window.savePrediction =
 
       return false;
     }
-
-    /*
-      GİZLİLİK + KİLİT KURALI:
-      Artık "predictions" tablosuna doğrudan
-      upsert yapmıyoruz (RLS bunu zaten
-      engelliyor). Bunun yerine güvenli
-      "submit_prediction" fonksiyonunu (RPC)
-      çağırıyoruz. Bu fonksiyon, veritabanı
-      seviyesinde maçın kickoff_at zamanını
-      kontrol eder ve maç başladıysa isteği
-      reddeder - istemci tarafındaki
-      isWeekLocked() kontrolü sadece arayüz
-      için, asıl güvenlik burada.
-    */
 
     const {
       error
@@ -2492,12 +2462,6 @@ document
     "Bağlanıyor...";
 
   try {
-
-    /*
-      Sıralama önemli:
-      Önce oyuncular ve maçlar,
-      sonra dönem görünümü yüklenir.
-    */
 
     await loadPlayers();
 
