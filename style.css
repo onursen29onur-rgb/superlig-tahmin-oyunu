@@ -50,3 +50,26 @@ html[data-theme="light"]{--bg:#eef3f8;--panel:#fff;--panel2:#f6f9fd;--line:#dbe4
 .match-rank-3{background:rgba(205,127,50,.09)}
 
 @media(max-width:760px){.container{width:min(100% - 20px,1120px);margin-top:18px}.status{display:none}.match-grid,.rule-grid,.podium{grid-template-columns:1fr}.welcome-row,.section-head{align-items:flex-start;flex-direction:column}.section-head .btn{width:100%}.login-card{padding:21px}.teams{gap:5px}.topbar{padding:10px 12px}.tabs{position:sticky;top:67px;z-index:8;overflow-x:auto}.tab{flex:0 0 auto;white-space:nowrap}.match-footer .btn{padding:9px 11px}.result-filter-card{display:block}.result-teams{grid-template-columns:1fr;gap:10px}.result-teams strong{justify-self:center}.result-pool-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mvp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.match-points-table-card{overflow-x:auto}.match-points-table{min-width:780px}}
+/* --- FİKSTÜR GÖRÜNÜMÜ --- */
+.result-filter-card{margin-bottom:18px}
+.fixture-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.fixture-row{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;gap:14px;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);transition:transform .15s ease}
+.fixture-row:hover{transform:translateY(-2px)}
+.fixture-team{font-weight:800;overflow-wrap:anywhere;font-size:13px}
+.fixture-row .fixture-team.home{text-align:right}
+.fixture-row .fixture-team.away{text-align:left}
+.fixture-score{min-width:86px;text-align:center;font-weight:900;font-size:15px;padding:8px 10px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+.fixture-status{font-size:11px;font-weight:800;padding:6px 11px;border-radius:999px;text-align:center;white-space:nowrap;justify-self:end}
+.fixture-status.finished{color:var(--green);background:rgba(37,194,129,.14)}
+.fixture-status.live{color:var(--red);background:rgba(239,83,80,.16);animation:fixturePulse 1.5s infinite}
+.fixture-status.upcoming{color:var(--muted);background:rgba(147,166,196,.10)}
+.fixture-row.finished{border-left:3px solid var(--green)}
+.fixture-row.live{border-left:3px solid var(--red)}
+.fixture-row.upcoming{border-left:3px solid var(--line)}
+@keyframes fixturePulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+@media(max-width:760px){
+  .fixture-row{grid-template-columns:1fr;text-align:center;gap:8px}
+  .fixture-row .fixture-team.home,.fixture-row .fixture-team.away{text-align:center}
+  .fixture-status{justify-self:center}
+}
