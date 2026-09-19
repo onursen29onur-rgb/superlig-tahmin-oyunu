@@ -1109,6 +1109,18 @@ async function loadMatchPoints(matchId) {
     </tr>
   `;
 
+  /*
+    GİZLİLİK KURALI:
+    "predictions" tablosuna artık RLS nedeniyle
+    doğrudan erişim yok. Bunun yerine güvenli
+    "get_week_predictions" fonksiyonunu (RPC)
+    çağırıyoruz. Bu maç zaten tamamlanmış (FT)
+    olduğu için, o haftanın ilk maçı da kesinlikle
+    başlamış demektir; fonksiyon bu durumda
+    haftanın TÜM oyuncularının tahminlerini
+    otomatik olarak açar.
+  */
+
   const [
     predictionResponse,
     pointResponse
@@ -1116,13 +1128,14 @@ async function loadMatchPoints(matchId) {
     await Promise.all([
 
       supabaseClient
-        .from("predictions")
-        .select(
-          "player_id,match_id,home_prediction,away_prediction"
-        )
-        .eq(
-          "match_id",
-          Number(matchId)
+        .rpc(
+          "get_week_predictions",
+          {
+            p_week: Number(selectedMatch.week),
+            p_player_id: currentPlayer
+              ? Number(currentPlayer)
+              : 0
+          }
         ),
 
       supabaseClient
@@ -1161,7 +1174,12 @@ async function loadMatchPoints(matchId) {
   }
 
   const predictions =
-    predictionResponse.data || [];
+    (predictionResponse.data || [])
+      .filter(
+        row =>
+          String(row.match_id) ===
+          String(matchId)
+      );
 
   const pointEntries =
     pointResponse.data || [];
@@ -1651,16 +1669,37 @@ function isWeekLocked() {
 
 async function loadPredictions() {
 
+  /*
+    GİZLİLİK KURALI:
+    Artık "predictions" tablosuna doğrudan
+    erişim yok (RLS aktif, politika yok).
+    Bunun yerine güvenli "get_week_predictions"
+    fonksiyonunu (RPC) çağırıyoruz.
+
+    Hafta henüz kilitlenmediyse (ilk maç
+    başlamadıysa), bu fonksiyon SADECE bizim
+    kendi player_id'mize ait tahminleri döner
+    - başkalarının tahminleri veritabanı
+    seviyesinde zaten gizlenmiş olur.
+
+    Hafta kilitlendiyse (ilk maç başladıysa),
+    fonksiyon herkesin tahminini döner; biz yine
+    de burada sadece kendi tahminimizi filtreleyip
+    kullanıyoruz çünkü bu ekran "benim tahminlerim"
+    formu.
+  */
+
   const {
-    data: savedPredictions,
+    data: weekPredictions,
     error
   } =
     await supabaseClient
-      .from("predictions")
-      .select("*")
-      .eq(
-        "player_id",
-        currentPlayer
+      .rpc(
+        "get_week_predictions",
+        {
+          p_week: Number(activeWeek),
+          p_player_id: Number(currentPlayer)
+        }
       );
 
   if (error) {
@@ -1678,7 +1717,12 @@ async function loadPredictions() {
   }
 
   const saved =
-    savedPredictions || [];
+    (weekPredictions || [])
+      .filter(
+        row =>
+          String(row.player_id) ===
+          String(currentPlayer)
+      );
 
   $("matchGrid").innerHTML =
     "";
@@ -1940,35 +1984,38 @@ window.savePrediction =
       return false;
     }
 
-    const payload = {
-
-      player_id:
-        Number(currentPlayer),
-
-      match_id:
-        Number(matchId),
-
-      home_prediction:
-        homePrediction,
-
-      away_prediction:
-        awayPrediction,
-
-      updated_at:
-        new Date()
-          .toISOString()
-    };
+    /*
+      GİZLİLİK + KİLİT KURALI:
+      Artık "predictions" tablosuna doğrudan
+      upsert yapmıyoruz (RLS bunu zaten
+      engelliyor). Bunun yerine güvenli
+      "submit_prediction" fonksiyonunu (RPC)
+      çağırıyoruz. Bu fonksiyon, veritabanı
+      seviyesinde maçın kickoff_at zamanını
+      kontrol eder ve maç başladıysa isteği
+      reddeder - istemci tarafındaki
+      isWeekLocked() kontrolü sadece arayüz
+      için, asıl güvenlik burada.
+    */
 
     const {
       error
     } =
       await supabaseClient
-        .from("predictions")
-        .upsert(
-          payload,
+        .rpc(
+          "submit_prediction",
           {
-            onConflict:
-              "player_id,match_id"
+            p_player_id:
+              Number(currentPlayer),
+
+            p_match_id:
+              Number(matchId),
+
+            p_home_prediction:
+              homePrediction,
+
+            p_away_prediction:
+              awayPrediction
           }
         );
 
@@ -1980,6 +2027,7 @@ window.savePrediction =
       );
 
       toast(
+        error.message ||
         "Tahmin kaydedilemedi"
       );
 
@@ -2361,3 +2409,4 @@ document
   }
 
 })();
+
