@@ -202,39 +202,47 @@ async function loadMatches() {
     return;
   }
 
-  const now =
-    Date.now();
+  /*
+    DÜZELTME (1. Madde):
+    Artık "gelecekte maçı olan hafta" değil,
+    "TÜM maçları henüz FT (tamamlanmış) olmayan
+    en küçük hafta numarası" aranıyor. Bu sayede
+    bir haftanın bazı maçları bitse bile, o
+    haftanın SON maçı da bitmeden bir sonraki
+    haftaya geçilmez.
+  */
 
-  const futureMatches =
-    allMatches.filter(match => {
+  const weekNumbers =
+    [...new Set(
+      allMatches.map(
+        match => Number(match.week)
+      )
+    )].sort((a, b) => a - b);
 
-      const kickoffTime =
-        new Date(
-          match.kickoff_at
-        ).getTime();
+  const incompleteWeeks =
+    weekNumbers.filter(weekNumber => {
 
-      return kickoffTime >= now;
+      const weekMatches =
+        allMatches.filter(
+          match =>
+            Number(match.week) === weekNumber
+        );
+
+      // Bu haftada FT olmayan (henüz bitmemiş)
+      // en az bir maç varsa, hafta hâlâ aktif sayılır.
+      return weekMatches.some(
+        match => match.status !== "FT"
+      );
     });
 
-  if (futureMatches.length) {
+  if (incompleteWeeks.length) {
 
-    activeWeek =
-      Math.min(
-        ...futureMatches.map(
-          match =>
-            Number(match.week)
-        )
-      );
+    activeWeek = incompleteWeeks[0];
 
   } else {
 
     activeWeek =
-      Math.max(
-        ...allMatches.map(
-          match =>
-            Number(match.week)
-        )
-      );
+      Math.max(...weekNumbers);
   }
 
   activePeriod =
@@ -314,7 +322,116 @@ async function loadMatches() {
     "Tamamlanan maç sayısı:",
     completedMatches.length
   );
+
+  /* 2. Madde: Fikstür sekmesini de güncelle */
+  renderFixtureWeekOptions();
 }
+
+/* ---------------------------------
+   FİKSTÜR GÖRÜNTÜLEME (Tahminden Bağımsız)
+---------------------------------- */
+
+function renderFixtureWeekOptions() {
+
+  const select = $("fixtureWeekSelect");
+
+  if (!select) return;
+
+  const weekNumbers =
+    [...new Set(
+      allMatches.map(
+        match => Number(match.week)
+      )
+    )].sort((a, b) => a - b);
+
+  const currentValue = select.value;
+
+  select.innerHTML =
+    weekNumbers
+      .map(weekNumber => `
+        <option value="${weekNumber}">
+          ${weekNumber}. Hafta
+        </option>
+      `)
+      .join("");
+
+  const valueToUse =
+    currentValue &&
+    weekNumbers.includes(Number(currentValue))
+      ? currentValue
+      : String(activeWeek);
+
+  select.value = valueToUse;
+
+  renderFixtureList(Number(valueToUse));
+}
+
+function renderFixtureList(weekNumber) {
+
+  const container = $("fixtureList");
+
+  if (!container) return;
+
+  const weekMatches =
+    allMatches
+      .filter(
+        match =>
+          Number(match.week) === Number(weekNumber)
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.kickoff_at) - new Date(b.kickoff_at)
+      );
+
+  if (!weekMatches.length) {
+
+    container.innerHTML =
+      `<p class="empty-state">Bu hafta için maç bulunamadı.</p>`;
+
+    return;
+  }
+
+  container.innerHTML =
+    weekMatches
+      .map(match => {
+
+        const isFinished =
+          match.status === "FT";
+
+        const scoreDisplay =
+          isFinished
+            ? `${match.home_score} - ${match.away_score}`
+            : new Date(match.kickoff_at)
+                .toLocaleString("tr-TR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                });
+
+        const statusLabel =
+          isFinished
+            ? "✓ Tamamlandı"
+            : match.status === "NS"
+              ? "Henüz oynanmadı"
+              : "🔴 Canlı";
+
+        return `
+          <div class="fixture-row">
+            <span class="fixture-team">${match.home_team}</span>
+            <span class="fixture-score">${scoreDisplay}</span>
+            <span class="fixture-team">${match.away_team}</span>
+            <span class="fixture-status">${statusLabel}</span>
+          </div>
+        `;
+      })
+      .join("");
+}
+
+$("fixtureWeekSelect")
+  ?.addEventListener("change", event => {
+    renderFixtureList(Number(event.target.value));
+  });
 
 /* ---------------------------------
    GENEL KLASMAN
@@ -2351,6 +2468,14 @@ document
               completedMatches[0].id
             );
           }
+        }
+
+        if (
+          button.dataset.tab ===
+          "fixture"
+        ) {
+
+          renderFixtureWeekOptions();
         }
       }
     );
