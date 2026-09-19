@@ -152,7 +152,7 @@
 
         </div>
 
-        <!-- 5 ANA SEKME -->
+        <!-- 6 ANA SEKME -->
 
         <nav
           class="tabs"
@@ -163,6 +163,13 @@
             data-tab="predictions"
             type="button">
             Tahminlerim
+          </button>
+
+          <button
+            class="tab"
+            data-tab="fixture"
+            type="button">
+            📅 Fikstür
           </button>
 
           <button
@@ -227,6 +234,48 @@
           <div
             id="matchGrid"
             class="match-grid">
+          </div>
+
+        </section>
+
+        <!-- FİKSTÜR PANELİ (Tahminden Bağımsız, Herkes Her Haftayı Görebilir) -->
+
+        <section
+          id="fixturePanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+
+            <div>
+
+              <h2>
+                📅 Fikstür
+              </h2>
+
+              <p>
+                Herhangi bir haftayı seçip maç
+                programını veya sonuçlarını görüntüle.
+                Bu ekran tahmin kilidinden etkilenmez.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="card result-filter-card">
+
+            <label for="fixtureWeekSelect">
+              Hafta
+            </label>
+
+            <select id="fixtureWeekSelect">
+            </select>
+
+          </div>
+
+          <div
+            id="fixtureList"
+            class="fixture-list">
           </div>
 
         </section>
