@@ -21,6 +21,34 @@
     href="style.css"
   >
 
+  <!-- PIN ALANI STİLİ -->
+  <style>
+    .login-card .pin-input {
+      display: block;
+      width: 100%;
+      padding: 12px 14px;
+      margin: 6px 0 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel2);
+      color: var(--text);
+      font-size: 18px;
+      letter-spacing: .5em;
+      text-align: center;
+    }
+
+    .login-card .pin-input::placeholder {
+      letter-spacing: normal;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .login-card .pin-input:focus {
+      outline: none;
+      border-color: var(--cyan);
+    }
+  </style>
+
   <script
     defer
     src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
@@ -102,6 +130,22 @@
           </option>
         </select>
 
+        <!-- PIN ALANI -->
+
+        <label for="pinInput">
+          PIN
+        </label>
+
+        <input
+          id="pinInput"
+          class="pin-input"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          placeholder="4 haneli PIN"
+          autocomplete="off"
+        >
+
         <button
           id="loginBtn"
           class="btn primary"
@@ -110,6 +154,7 @@
         </button>
 
         <p class="security-note">
+          Giriş için sana verilen 4 haneli PIN'i kullan.
           Tahminler haftanın ilk maçı başladığında
           otomatik olarak kapanır.
         </p>
@@ -574,4 +619,3 @@
 </body>
 
 </html>
-
