@@ -1690,3 +1690,743 @@ document.querySelectorAll(".tab").forEach(button => {
     toast(error.message || "Uygulama başlatılamadı");
   }
 })();
+/* =========================================
+   DÖNEM ARŞİVİ + TAHMİN KARŞILAŞTIRMA
+   + MOBİL FİKSTÜR
+   Mevcut app.js dosyasının sonuna ekle.
+========================================= */
+
+(() => {
+  if (document.getElementById("comparisonPanel")) return;
+
+  const byId = id => document.getElementById(id);
+
+  /* ---------------------------------
+     STİLLER
+  ---------------------------------- */
+
+  const style = document.createElement("style");
+  style.id = "archiveComparisonStyles";
+
+  style.textContent = `
+    .feature-filter {
+      display: flex;
+      align-items: end;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .feature-filter .filter-field {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .feature-note {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0 0 14px;
+    }
+
+    .feature-message {
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .comparison-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .comparison-table {
+      width: 100%;
+      min-width: 680px;
+      border-collapse: collapse;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    .comparison-table th:first-child,
+    .comparison-table td:first-child {
+      text-align: left;
+      min-width: 180px;
+    }
+
+    .comparison-table .my-column {
+      background: rgba(40, 200, 255, .08);
+    }
+
+    .comparison-table .exact-hit {
+      color: var(--gold);
+      font-weight: 900;
+      background: rgba(248, 198, 68, .1);
+    }
+
+    .comparison-table .missing-prediction {
+      color: var(--muted);
+    }
+
+    .comparison-match {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+
+    .comparison-match .team-badge {
+      width: 22px;
+      height: 22px;
+    }
+
+    .comparison-result {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .archive-current-player {
+      background: rgba(40, 200, 255, .08);
+    }
+
+    @media (max-width: 600px) {
+      .fixture-row {
+        grid-template-columns:
+          minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px 10px;
+        padding: 16px 12px;
+      }
+
+      .fixture-row .fixture-team.home {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .fixture-row .fixture-team.away {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .fixture-row .fixture-team.home,
+      .fixture-row .fixture-team.away {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+        font-size: 12px;
+        min-width: 0;
+      }
+
+      .fixture-row .fixture-team .team-badge {
+        order: -1;
+        width: 34px;
+        height: 34px;
+      }
+
+      .fixture-row .fixture-team .team-name {
+        overflow-wrap: anywhere;
+      }
+
+      .fixture-row .fixture-score {
+        grid-column: 1;
+        grid-row: 2;
+        width: 100%;
+        font-size: 12px;
+        padding: 9px 5px;
+      }
+
+      .fixture-row .fixture-status {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: stretch;
+        align-self: center;
+        font-size: 11px;
+        white-space: normal;
+      }
+
+      .feature-filter {
+        align-items: stretch;
+      }
+
+      .feature-filter .btn {
+        width: 100%;
+      }
+
+      .comparison-table {
+        min-width: 680px;
+      }
+
+      .comparison-table th,
+      .comparison-table td {
+        padding: 10px 8px;
+        font-size: 12px;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  /* ---------------------------------
+     DÖNEM ARŞİVİ PANELİ
+  ---------------------------------- */
+
+  const periodsPanel = byId("periodsPanel");
+
+  if (periodsPanel) {
+    const archive = document.createElement("section");
+    archive.id = "periodArchiveSection";
+
+    archive.innerHTML = `
+      <div class="section-head">
+        <div>
+          <h2>📅 Dönem Arşivi</h2>
+          <p>
+            Bir dönem seçerek tüm oyuncuların
+            puanlarını ve sıralamasını görüntüle.
+          </p>
+        </div>
+      </div>
+
+      <div class="card feature-filter">
+        <div class="filter-field">
+          <label for="archivePeriodSelect">Dönem</label>
+          <select id="archivePeriodSelect"></select>
+        </div>
+      </div>
+
+      <p id="archivePeriodNote" class="feature-note"></p>
+
+      <div class="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Oyuncu</th>
+              <th>Dönem Puanı</th>
+              <th>Lidere Fark</th>
+            </tr>
+          </thead>
+          <tbody id="archivePeriodBody"></tbody>
+        </table>
+      </div>
+    `;
+
+    periodsPanel.appendChild(archive);
+  }
+
+  function renderArchiveOptions() {
+    const select = byId("archivePeriodSelect");
+    if (!select) return;
+
+    const previousValue = Number(select.value);
+
+    const periodNumbers = [...new Set([
+      ...periodRows.map(row => Number(row.period_no)),
+      Number(activePeriod)
+    ])]
+      .filter(number =>
+        Number.isInteger(number) && number > 0
+      )
+      .sort((a, b) => a - b);
+
+    select.innerHTML = periodNumbers.map(number => `
+      <option value="${number}">
+        Dönem ${number} ·
+        Hafta ${periodStart(number)}-${periodEnd(number)}
+      </option>
+    `).join("");
+
+    if (!periodNumbers.length) {
+      byId("archivePeriodBody").innerHTML = `
+        <tr>
+          <td colspan="4">Henüz dönem verisi bulunmuyor.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    select.value = String(
+      periodNumbers.includes(previousValue)
+        ? previousValue
+        : activePeriod || periodNumbers[0]
+    );
+
+    renderArchiveTable();
+  }
+
+  function renderArchiveTable() {
+    const select = byId("archivePeriodSelect");
+    const body = byId("archivePeriodBody");
+    const note = byId("archivePeriodNote");
+
+    if (!select || !body || !select.value) return;
+
+    const number = Number(select.value);
+    const rows = rowsForPeriod(number);
+    const topScore = rows[0]?.total_points || 0;
+
+    const hasData = periodRows.some(
+      row => Number(row.period_no) === number
+    );
+
+    note.textContent =
+      `Hafta ${periodStart(number)}-${periodEnd(number)} · ` +
+      (
+        number === Number(activePeriod)
+          ? "Aktif dönem; puanlar değişebilir."
+          : "Seçilen dönemin mevcut puan kayıtları."
+      );
+
+    if (!hasData) {
+      body.innerHTML = `
+        <tr>
+          <td colspan="4">
+            Bu dönem için henüz puan kaydı bulunmuyor.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    body.innerHTML = rows.map((player, index) => `
+      <tr class="${
+        String(player.id) === String(currentPlayer)
+          ? "archive-current-player"
+          : ""
+      }">
+        <td>${rankLabel(index)}</td>
+        <td>${escapeHTML(player.name)}</td>
+        <td class="points">
+          ${numberTR(player.total_points)}
+        </td>
+        <td>
+          ${
+            index === 0
+              ? "-"
+              : numberTR(topScore - player.total_points)
+          }
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  byId("archivePeriodSelect")?.addEventListener(
+    "change",
+    renderArchiveTable
+  );
+
+  /* ---------------------------------
+     KARŞILAŞTIRMA SEKMESİ
+  ---------------------------------- */
+
+  const tabs = document.querySelector(".tabs");
+  const gameArea = byId("gameArea");
+
+  if (!tabs || !gameArea) return;
+
+  const tab = document.createElement("button");
+  tab.className = "tab";
+  tab.type = "button";
+  tab.dataset.tab = "comparison";
+  tab.textContent = "⚔️ Karşılaştırma";
+  tabs.appendChild(tab);
+
+  const panel = document.createElement("section");
+  panel.id = "comparisonPanel";
+  panel.className = "tab-panel hidden";
+
+  panel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <h2>⚔️ Tahmin Karşılaştırma</h2>
+        <p>
+          Hafta kilitlendikten sonra oyuncuların
+          tahminlerini yan yana karşılaştır.
+        </p>
+      </div>
+    </div>
+
+    <div class="card feature-filter">
+      <div class="filter-field">
+        <label for="comparisonWeekSelect">Hafta</label>
+        <select id="comparisonWeekSelect"></select>
+      </div>
+
+      <button
+        id="comparisonRefreshBtn"
+        class="btn ghost"
+        type="button">
+        Yenile
+      </button>
+    </div>
+
+    <p class="feature-note">
+      Telefonda tüm oyuncuları görmek için tabloyu
+      yatay kaydır. Altın hücreler, FT durumundaki
+      maçlarda tam skor eşleşmesini gösterir.
+    </p>
+
+    <div
+      id="comparisonContent"
+      class="card comparison-scroll">
+    </div>
+  `;
+
+  gameArea.appendChild(panel);
+
+  let comparisonRequest = 0;
+
+  function renderComparisonOptions() {
+    const select = byId("comparisonWeekSelect");
+    if (!select) return;
+
+    const previousValue = Number(select.value);
+
+    const weeks = [...new Set(
+      allMatches.map(match => Number(match.week))
+    )]
+      .filter(week => Number.isInteger(week) && week > 0)
+      .sort((a, b) => a - b);
+
+    select.innerHTML = weeks.map(week => `
+      <option value="${week}">${week}. Hafta</option>
+    `).join("");
+
+    if (weeks.length) {
+      select.value = String(
+        weeks.includes(previousValue)
+          ? previousValue
+          : activeWeek || weeks[0]
+      );
+    }
+  }
+
+  async function renderComparison() {
+    const request = ++comparisonRequest;
+    const container = byId("comparisonContent");
+    const select = byId("comparisonWeekSelect");
+
+    if (!container || !select) return;
+
+    const week = Number(select.value);
+
+    const weekMatches = allMatches
+      .filter(match => Number(match.week) === week)
+      .sort((a, b) =>
+        new Date(a.kickoff_at) - new Date(b.kickoff_at)
+      );
+
+    if (!weekMatches.length) {
+      container.innerHTML = `
+        <div class="feature-message">
+          Bu hafta için maç bulunamadı.
+        </div>
+      `;
+      return;
+    }
+
+    const kickoffTimes = weekMatches.map(
+      match => new Date(match.kickoff_at).getTime()
+    );
+
+    if (kickoffTimes.some(time => !Number.isFinite(time))) {
+      container.innerHTML = `
+        <div class="feature-message">
+          Maç saatleri eksik veya geçersiz.
+          Karşılaştırma güvenlik nedeniyle açılmadı.
+        </div>
+      `;
+      return;
+    }
+
+    const lockTime = Math.min(...kickoffTimes);
+
+    /* Kilit öncesinde diğer oyuncuların verisi istenmez. */
+    if (Date.now() < lockTime) {
+      container.innerHTML = `
+        <div class="feature-message">
+          🔒 Bu haftanın tahminleri henüz gizli.
+          <br><br>
+          Karşılaştırma açılışı:
+          ${
+            escapeHTML(
+              new Date(lockTime).toLocaleString("tr-TR")
+            )
+          }
+        </div>
+      `;
+      return;
+    }
+
+    const token = sessionToken();
+
+    if (!token) {
+      handleSessionError({ message: "Oturum gecersiz" });
+      return;
+    }
+
+    const viewerId = String(currentPlayer);
+
+    container.innerHTML = `
+      <div class="feature-message">
+        Tahminler yükleniyor...
+      </div>
+    `;
+
+    try {
+      const { data, error } = await supabaseClient.rpc(
+        "get_my_week_predictions",
+        {
+          p_token: token,
+          p_week: week
+        }
+      );
+
+      if (
+        request !== comparisonRequest ||
+        viewerId !== String(currentPlayer) ||
+        token !== sessionToken()
+      ) {
+        return;
+      }
+
+      if (error) throw error;
+
+      const predictions = new Map();
+
+      (data || []).forEach(row => {
+        predictions.set(
+          `${row.match_id}:${row.player_id}`,
+          row
+        );
+      });
+
+      const orderedPlayers = [...players].sort(
+        (a, b) => a.name.localeCompare(b.name, "tr")
+      );
+
+      container.innerHTML = `
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Maç</th>
+
+              ${
+                orderedPlayers.map(player => `
+                  <th class="${
+                    String(player.id) === viewerId
+                      ? "my-column"
+                      : ""
+                  }">
+                    ${escapeHTML(player.name)}
+                  </th>
+                `).join("")
+              }
+            </tr>
+          </thead>
+
+          <tbody>
+            ${
+              weekMatches.map(match => {
+                const finishedWithScore =
+                  match.status === "FT" &&
+                  match.home_score !== null &&
+                  match.home_score !== undefined &&
+                  match.away_score !== null &&
+                  match.away_score !== undefined;
+
+                return `
+                  <tr>
+                    <td>
+                      <div class="comparison-match">
+                        ${
+                          teamBadge(
+                            match.home_team_badge,
+                            match.home_team
+                          )
+                        }
+                        <span>
+                          ${escapeHTML(match.home_team)}
+                        </span>
+                      </div>
+
+                      <div class="comparison-match">
+                        ${
+                          teamBadge(
+                            match.away_team_badge,
+                            match.away_team
+                          )
+                        }
+                        <span>
+                          ${escapeHTML(match.away_team)}
+                        </span>
+                      </div>
+
+                      <small class="comparison-result">
+                        ${
+                          finishedWithScore
+                            ? `Sonuç: ${
+                                escapeHTML(match.home_score)
+                              }-${
+                                escapeHTML(match.away_score)
+                              }`
+                            : "Kesin sonuç bekleniyor"
+                        }
+                      </small>
+                    </td>
+
+                    ${
+                      orderedPlayers.map(player => {
+                        const prediction = predictions.get(
+                          `${match.id}:${player.id}`
+                        );
+
+                        const exact =
+                          prediction &&
+                          finishedWithScore &&
+                          Number(prediction.home_prediction) ===
+                            Number(match.home_score) &&
+                          Number(prediction.away_prediction) ===
+                            Number(match.away_score);
+
+                        const classes = [
+                          String(player.id) === viewerId
+                            ? "my-column"
+                            : "",
+                          exact ? "exact-hit" : "",
+                          !prediction ? "missing-prediction" : ""
+                        ].filter(Boolean).join(" ");
+
+                        return `
+                          <td class="${classes}">
+                            ${
+                              prediction
+                                ? `${
+                                    escapeHTML(
+                                      prediction.home_prediction
+                                    )
+                                  }-${
+                                    escapeHTML(
+                                      prediction.away_prediction
+                                    )
+                                  }${exact ? " 🎯" : ""}`
+                                : "—"
+                            }
+                          </td>
+                        `;
+                      }).join("")
+                    }
+                  </tr>
+                `;
+              }).join("")
+            }
+          </tbody>
+        </table>
+      `;
+    } catch (error) {
+      if (request !== comparisonRequest) return;
+
+      console.error("Karşılaştırma hatası:", error);
+
+      if (handleSessionError(error)) return;
+
+      container.innerHTML = `
+        <div class="feature-message">
+          Tahminler yüklenemedi.
+          ${
+            escapeHTML(error.message || "")
+          }
+        </div>
+      `;
+    }
+  }
+
+  /* Yeni sekmenin geçiş davranışı. */
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(button => {
+      button.classList.remove("active");
+    });
+
+    document.querySelectorAll(".tab-panel").forEach(item => {
+      item.classList.add("hidden");
+    });
+
+    tab.classList.add("active");
+    panel.classList.remove("hidden");
+
+    renderComparisonOptions();
+    renderComparison();
+  });
+
+  byId("comparisonWeekSelect").addEventListener(
+    "change",
+    renderComparison
+  );
+
+  byId("comparisonRefreshBtn").addEventListener(
+    "click",
+    async () => {
+      const button = byId("comparisonRefreshBtn");
+      button.disabled = true;
+
+      try {
+        await loadPlayers();
+        await loadMatches();
+
+        renderComparisonOptions();
+        await renderComparison();
+      } catch (error) {
+        toast(error.message || "Veriler yenilenemedi");
+      } finally {
+        button.disabled = false;
+      }
+    }
+  );
+
+  /* ---------------------------------
+     MEVCUT YENİLEME AKIŞINA BAĞLANTI
+  ---------------------------------- */
+
+  const originalRenderPeriodViews = renderPeriodViews;
+
+  renderPeriodViews = function() {
+    originalRenderPeriodViews();
+    renderArchiveOptions();
+    renderComparisonOptions();
+
+    if (!panel.classList.contains("hidden")) {
+      renderComparison();
+    }
+  };
+
+  const originalEnterGame = enterGame;
+
+  enterGame = async function(playerId, playerName) {
+    await originalEnterGame(playerId, playerName);
+    renderArchiveOptions();
+
+    if (!panel.classList.contains("hidden")) {
+      renderComparison();
+    }
+  };
+
+  const originalShowLogin = showLogin;
+
+  showLogin = function() {
+    comparisonRequest++;
+
+    byId("comparisonContent").innerHTML = "";
+    originalShowLogin();
+  };
+
+  renderArchiveOptions();
+  renderComparisonOptions();
+})();
