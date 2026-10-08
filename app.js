@@ -10,8 +10,7 @@ const supabaseClient =
     SUPABASE_ANON_KEY
   );
 
-const $ = (id) =>
-  document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
 let players = [];
 let matches = [];
@@ -26,16 +25,90 @@ let activeWeek = null;
 let activePeriod = null;
 
 /* ---------------------------------
+   OTURUM (PIN + TOKEN)
+---------------------------------- */
+
+const SESSION_KEY = "slt_session";
+
+function getSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+
+    const session = JSON.parse(raw);
+
+    if (
+      !session.token ||
+      !session.playerId ||
+      new Date(session.expiresAt).getTime() <= Date.now()
+    ) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    return session;
+  } catch {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+function saveSession(session) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function sessionToken() {
+  const session = getSession();
+  return session ? session.token : null;
+}
+
+function showLogin() {
+  currentPlayer = null;
+
+  $("gameArea").classList.add("hidden");
+  $("loginCard").classList.remove("hidden");
+
+  if ($("pinInput")) {
+    $("pinInput").value = "";
+  }
+}
+
+/* Oturum hatasıysa çıkış yapar ve true döner */
+function handleSessionError(error) {
+  const message = String(error?.message || "");
+
+  if (message.includes("Oturum gecersiz")) {
+    clearSession();
+    showLogin();
+    toast("Oturum süresi doldu, PIN ile tekrar giriş yap");
+    return true;
+  }
+
+  return false;
+}
+
+async function enterGame(playerId, playerName) {
+  currentPlayer = String(playerId);
+
+  $("loginCard").classList.add("hidden");
+  $("gameArea").classList.remove("hidden");
+
+  $("activePlayerName").textContent = playerName || "";
+
+  await loadPredictions();
+}
+
+/* ---------------------------------
    GENEL YARDIMCI FONKSİYONLAR
 ---------------------------------- */
 
 function toast(message) {
-
   const toastElement = $("toast");
-
-  if (!toastElement) {
-    return;
-  }
+  if (!toastElement) return;
 
   toastElement.textContent = message;
   toastElement.classList.add("show");
@@ -46,47 +119,25 @@ function toast(message) {
 }
 
 function numberTR(value) {
-
-  return Number(value || 0)
-    .toLocaleString(
-      "tr-TR",
-      {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 2
-      }
-    );
+  return Number(value || 0).toLocaleString("tr-TR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2
+  });
 }
 
 function rankLabel(index) {
-
-  if (index === 0) {
-    return "🥇";
-  }
-
-  if (index === 1) {
-    return "🥈";
-  }
-
-  if (index === 2) {
-    return "🥉";
-  }
-
+  if (index === 0) return "🥇";
+  if (index === 1) return "🥈";
+  if (index === 2) return "🥉";
   return index + 1;
 }
 
 function periodStart(periodNumber) {
-
-  return (
-    (periodNumber - 1) * 4
-  ) + 1;
+  return ((periodNumber - 1) * 4) + 1;
 }
 
 function periodEnd(periodNumber) {
-
-  return Math.min(
-    periodNumber * 4,
-    38
-  );
+  return Math.min(periodNumber * 4, 38);
 }
 
 /* ---------------------------------
@@ -94,36 +145,20 @@ function periodEnd(periodNumber) {
 ---------------------------------- */
 
 async function loadPlayers() {
-
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from("players")
-      .select("*")
-      .order(
-        "total_points",
-        {
-          ascending: false
-        }
-      );
+  const { data, error } = await supabaseClient
+    .from("players")
+    .select("*")
+    .order("total_points", { ascending: false });
 
   if (error) {
-
-    console.error(
-      "Oyuncular yüklenemedi:",
-      error
-    );
-
-    toast(
-      "Oyuncular yüklenemedi"
-    );
-
+    console.error("Oyuncular yüklenemedi:", error);
+    toast("Oyuncular yüklenemedi");
     return;
   }
 
   players = data || [];
+
+  const selectedValue = $("playerSelect").value;
 
   $("playerSelect").innerHTML =
     '<option value="">Oyuncu seç...</option>' +
@@ -135,6 +170,10 @@ async function loadPlayers() {
       `)
       .join("");
 
+  if (selectedValue) {
+    $("playerSelect").value = selectedValue;
+  }
+
   renderLeaderboard();
 }
 
@@ -143,182 +182,89 @@ async function loadPlayers() {
 ---------------------------------- */
 
 async function loadMatches() {
-
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from("matches")
-      .select("*")
-      .neq(
-        "home_team",
-        "HISTORICAL"
-      )
-      .order(
-        "week",
-        {
-          ascending: true
-        }
-      )
-      .order(
-        "kickoff_at",
-        {
-          ascending: true
-        }
-      );
+  const { data, error } = await supabaseClient
+    .from("matches")
+    .select("*")
+    .neq("home_team", "HISTORICAL")
+    .order("week", { ascending: true })
+    .order("kickoff_at", { ascending: true });
 
   if (error) {
-
-    console.error(
-      "Maçlar yüklenemedi:",
-      error
-    );
-
-    toast(
-      "Maçlar yüklenemedi"
-    );
-
+    console.error("Maçlar yüklenemedi:", error);
+    toast("Maçlar yüklenemedi");
     return;
   }
 
-  allMatches =
-    data || [];
+  allMatches = data || [];
 
   if (!allMatches.length) {
-
     matches = [];
     completedMatches = [];
     activeWeek = null;
     activePeriod = null;
 
     if ($("weekSummary")) {
-      $("weekSummary").textContent =
-        "Aktif hafta için maç bulunamadı.";
+      $("weekSummary").textContent = "Aktif hafta için maç bulunamadı.";
     }
 
     renderCompletedMatchSelect();
-
     return;
   }
 
   /*
-    Artık "gelecekte maçı olan hafta" değil,
-    "TÜM maçları henüz FT (tamamlanmış) olmayan
-    en küçük hafta numarası" aranıyor. Bu sayede
-    bir haftanın bazı maçları bitse bile, o
-    haftanın SON maçı da bitmeden bir sonraki
-    haftaya geçilmez.
+    Aktif hafta: TÜM maçları henüz FT olmayan
+    en küçük hafta. Haftanın son maçı bitmeden
+    bir sonraki haftaya geçilmez.
   */
 
   const weekNumbers =
-    [...new Set(
-      allMatches.map(
-        match => Number(match.week)
-      )
-    )].sort((a, b) => a - b);
+    [...new Set(allMatches.map(match => Number(match.week)))]
+      .sort((a, b) => a - b);
 
   const incompleteWeeks =
-    weekNumbers.filter(weekNumber => {
-
-      const weekMatches =
-        allMatches.filter(
-          match =>
-            Number(match.week) === weekNumber
-        );
-
-      return weekMatches.some(
-        match => match.status !== "FT"
-      );
-    });
-
-  if (incompleteWeeks.length) {
-
-    activeWeek = incompleteWeeks[0];
-
-  } else {
-
-    activeWeek =
-      Math.max(...weekNumbers);
-  }
-
-  activePeriod =
-    Math.floor(
-      (activeWeek - 1) / 4
-    ) + 1;
-
-  matches =
-    allMatches.filter(
-      match =>
-        Number(match.week) ===
-        Number(activeWeek)
+    weekNumbers.filter(weekNumber =>
+      allMatches
+        .filter(match => Number(match.week) === weekNumber)
+        .some(match => match.status !== "FT")
     );
 
-  completedMatches =
-    allMatches
-      .filter(match => {
+  activeWeek = incompleteWeeks.length
+    ? incompleteWeeks[0]
+    : Math.max(...weekNumbers);
 
-        const hasHomeScore =
-          match.home_score !== null &&
-          match.home_score !== undefined;
+  activePeriod = Math.floor((activeWeek - 1) / 4) + 1;
 
-        const hasAwayScore =
-          match.away_score !== null &&
-          match.away_score !== undefined;
+  matches = allMatches.filter(
+    match => Number(match.week) === Number(activeWeek)
+  );
 
-        return (
-          hasHomeScore &&
-          hasAwayScore
-        );
-      })
-      .sort(
-        (firstMatch, secondMatch) => {
+  completedMatches = allMatches
+    .filter(match =>
+      match.home_score !== null && match.home_score !== undefined &&
+      match.away_score !== null && match.away_score !== undefined
+    )
+    .sort((firstMatch, secondMatch) => {
+      const weekDifference =
+        Number(secondMatch.week) - Number(firstMatch.week);
 
-          const weekDifference =
-            Number(secondMatch.week) -
-            Number(firstMatch.week);
+      if (weekDifference !== 0) return weekDifference;
 
-          if (weekDifference !== 0) {
-            return weekDifference;
-          }
-
-          return (
-            new Date(secondMatch.kickoff_at) -
-            new Date(firstMatch.kickoff_at)
-          );
-        }
-      );
+      return new Date(secondMatch.kickoff_at) - new Date(firstMatch.kickoff_at);
+    });
 
   renderCompletedMatchSelect();
 
   if ($("activeWeekEyebrow")) {
-
-    $("activeWeekEyebrow")
-      .textContent =
-      `${activeWeek}. HAFTA`;
+    $("activeWeekEyebrow").textContent = `${activeWeek}. HAFTA`;
   }
 
   if ($("matchesTitle")) {
-
-    $("matchesTitle")
-      .textContent =
-      `${activeWeek}. Hafta Maçları`;
+    $("matchesTitle").textContent = `${activeWeek}. Hafta Maçları`;
   }
 
-  console.log(
-    "Aktif hafta:",
-    activeWeek
-  );
-
-  console.log(
-    "Aktif dönem:",
-    activePeriod
-  );
-
-  console.log(
-    "Tamamlanan maç sayısı:",
-    completedMatches.length
-  );
+  console.log("Aktif hafta:", activeWeek);
+  console.log("Aktif dönem:", activePeriod);
+  console.log("Tamamlanan maç sayısı:", completedMatches.length);
 
   renderFixtureWeekOptions();
 }
@@ -328,32 +274,25 @@ async function loadMatches() {
 ---------------------------------- */
 
 function renderFixtureWeekOptions() {
-
   const select = $("fixtureWeekSelect");
-
   if (!select) return;
 
   const weekNumbers =
-    [...new Set(
-      allMatches.map(
-        match => Number(match.week)
-      )
-    )].sort((a, b) => a - b);
+    [...new Set(allMatches.map(match => Number(match.week)))]
+      .sort((a, b) => a - b);
 
   const currentValue = select.value;
 
-  select.innerHTML =
-    weekNumbers
-      .map(weekNumber => `
-        <option value="${weekNumber}">
-          ${weekNumber}. Hafta
-        </option>
-      `)
-      .join("");
+  select.innerHTML = weekNumbers
+    .map(weekNumber => `
+      <option value="${weekNumber}">
+        ${weekNumber}. Hafta
+      </option>
+    `)
+    .join("");
 
   const valueToUse =
-    currentValue &&
-    weekNumbers.includes(Number(currentValue))
+    currentValue && weekNumbers.includes(Number(currentValue))
       ? currentValue
       : String(activeWeek);
 
@@ -363,203 +302,106 @@ function renderFixtureWeekOptions() {
 }
 
 function renderFixtureList(weekNumber) {
-
   const container = $("fixtureList");
-
   if (!container) return;
 
-  const weekMatches =
-    allMatches
-      .filter(
-        match =>
-          Number(match.week) === Number(weekNumber)
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.kickoff_at) - new Date(b.kickoff_at)
-      );
+  const weekMatches = allMatches
+    .filter(match => Number(match.week) === Number(weekNumber))
+    .sort((a, b) => new Date(a.kickoff_at) - new Date(b.kickoff_at));
 
   if (!weekMatches.length) {
-
     container.innerHTML =
       `<p class="empty-state">Bu hafta için maç bulunamadı.</p>`;
-
     return;
   }
 
-  container.innerHTML =
-    weekMatches
-      .map(match => {
+  container.innerHTML = weekMatches
+    .map(match => {
+      const isFinished = match.status === "FT";
 
-        const isFinished =
-          match.status === "FT";
+      const scoreDisplay = isFinished
+        ? `${match.home_score} - ${match.away_score}`
+        : new Date(match.kickoff_at).toLocaleString("tr-TR", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
 
-        const scoreDisplay =
-          isFinished
-            ? `${match.home_score} - ${match.away_score}`
-            : new Date(match.kickoff_at)
-                .toLocaleString("tr-TR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit"
-                });
+      const statusClass = isFinished
+        ? "finished"
+        : match.status === "NS" ? "upcoming" : "live";
 
-        const statusClass =
-          isFinished
-            ? "finished"
-            : match.status === "NS"
-              ? "upcoming"
-              : "live";
+      const statusLabel = isFinished
+        ? "✓ Tamamlandı"
+        : match.status === "NS" ? "Henüz oynanmadı" : "🔴 Canlı";
 
-        const statusLabel =
-          isFinished
-            ? "✓ Tamamlandı"
-            : match.status === "NS"
-              ? "Henüz oynanmadı"
-              : "🔴 Canlı";
-
-        return `
-          <div class="fixture-row ${statusClass}">
-
-            <span class="fixture-team home">
-              ${match.home_team}
-            </span>
-
-            <span class="fixture-score">
-              ${scoreDisplay}
-            </span>
-
-            <span class="fixture-team away">
-              ${match.away_team}
-            </span>
-
-            <span class="fixture-status ${statusClass}">
-              ${statusLabel}
-            </span>
-
-          </div>
-        `;
-      })
-      .join("");
+      return `
+        <div class="fixture-row ${statusClass}">
+          <span class="fixture-team home">${match.home_team}</span>
+          <span class="fixture-score">${scoreDisplay}</span>
+          <span class="fixture-team away">${match.away_team}</span>
+          <span class="fixture-status ${statusClass}">${statusLabel}</span>
+        </div>
+      `;
+    })
+    .join("");
 }
 
-$("fixtureWeekSelect")
-  ?.addEventListener("change", event => {
-    renderFixtureList(Number(event.target.value));
-  });
+$("fixtureWeekSelect")?.addEventListener("change", event => {
+  renderFixtureList(Number(event.target.value));
+});
 
 /* ---------------------------------
    GENEL KLASMAN
 ---------------------------------- */
 
 function renderLeaderboard() {
+  const sortedPlayers = [...players].sort(
+    (firstPlayer, secondPlayer) =>
+      Number(secondPlayer.total_points || 0) -
+      Number(firstPlayer.total_points || 0)
+  );
 
-  const sortedPlayers =
-    [...players].sort(
-      (firstPlayer, secondPlayer) =>
-        Number(
-          secondPlayer.total_points || 0
-        ) -
-        Number(
-          firstPlayer.total_points || 0
-        )
-    );
+  const topScore = sortedPlayers.length
+    ? Number(sortedPlayers[0].total_points || 0)
+    : 0;
 
-  const topScore =
-    sortedPlayers.length
-      ? Number(
-          sortedPlayers[0]
-            .total_points || 0
-        )
-      : 0;
+  $("leaderBody").innerHTML = sortedPlayers
+    .map((player, index) => {
+      const playerPoints = Number(player.total_points || 0);
+      const difference = topScore - playerPoints;
 
-  $("leaderBody").innerHTML =
-    sortedPlayers
-      .map(
-        (player, index) => {
+      return `
+        <tr>
+          <td>${rankLabel(index)}</td>
+          <td>${player.name}</td>
+          <td class="points">${numberTR(playerPoints)}</td>
+          <td>${index === 0 ? "-" : numberTR(difference)}</td>
+        </tr>
+      `;
+    })
+    .join("");
 
-          const playerPoints =
-            Number(
-              player.total_points || 0
-            );
+  const topPlayers = sortedPlayers
+    .filter(player => Number(player.total_points || 0) > 0)
+    .slice(0, 3);
 
-          const difference =
-            topScore - playerPoints;
-
-          return `
-            <tr>
-
-              <td>
-                ${rankLabel(index)}
-              </td>
-
-              <td>
-                ${player.name}
-              </td>
-
-              <td class="points">
-                ${numberTR(playerPoints)}
-              </td>
-
-              <td>
-                ${
-                  index === 0
-                    ? "-"
-                    : numberTR(difference)
-                }
-              </td>
-
-            </tr>
-          `;
-        }
-      )
-      .join("");
-
-  const topPlayers =
-    sortedPlayers
-      .filter(
-        player =>
-          Number(player.total_points || 0) > 0
-      )
-      .slice(0, 3);
-
-  $("podium").innerHTML =
-    topPlayers.length
-      ? topPlayers
-          .map(
-            (player, index) => `
-              <div class="pod">
-
-                <div class="medal">
-                  ${
-                    [
-                      "🥇",
-                      "🥈",
-                      "🥉"
-                    ][index]
-                  }
-                </div>
-
-                <div class="name">
-                  ${player.name}
-                </div>
-
-                <div class="points">
-                  ${numberTR(
-                    player.total_points
-                  )}
-                </div>
-
-              </div>
-            `
-          )
-          .join("")
-      : `
-          <div class="card empty-state">
-            Genel klasman için henüz puan bulunmuyor.
+  $("podium").innerHTML = topPlayers.length
+    ? topPlayers
+        .map((player, index) => `
+          <div class="pod">
+            <div class="medal">${["🥇", "🥈", "🥉"][index]}</div>
+            <div class="name">${player.name}</div>
+            <div class="points">${numberTR(player.total_points)}</div>
           </div>
-        `;
+        `)
+        .join("")
+    : `
+        <div class="card empty-state">
+          Genel klasman için henüz puan bulunmuyor.
+        </div>
+      `;
 }
 
 /* ---------------------------------
@@ -567,74 +409,32 @@ function renderLeaderboard() {
 ---------------------------------- */
 
 async function loadPeriodLeaderboard() {
-
-  const {
-    data,
-    error
-  } =
-    await supabaseClient
-      .from(
-        "period_leaderboard"
-      )
-      .select("*")
-      .order(
-        "period_no",
-        {
-          ascending: true
-        }
-      )
-      .order(
-        "total_points",
-        {
-          ascending: false
-        }
-      );
+  const { data, error } = await supabaseClient
+    .from("period_leaderboard")
+    .select("*")
+    .order("period_no", { ascending: true })
+    .order("total_points", { ascending: false });
 
   if (error) {
-
-    console.error(
-      "Dönem sıralamaları yüklenemedi:",
-      error
-    );
-
-    toast(
-      "Dönem sıralamaları yüklenemedi"
-    );
-
+    console.error("Dönem sıralamaları yüklenemedi:", error);
+    toast("Dönem sıralamaları yüklenemedi");
     return;
   }
 
-  periodRows =
-    data || [];
+  periodRows = data || [];
 
   renderPeriodViews();
 }
 
-function rowsForPeriod(
-  periodNumber
-) {
-
-  const pointsByPlayerId =
-    new Map();
+function rowsForPeriod(periodNumber) {
+  const pointsByPlayerId = new Map();
 
   periodRows
-    .filter(
-      row =>
-        Number(row.period_no) ===
-        Number(periodNumber)
-    )
+    .filter(row => Number(row.period_no) === Number(periodNumber))
     .forEach(row => {
+      const playerId = row.player_id ?? row.id;
 
-      const playerId =
-        row.player_id ??
-        row.id;
-
-      if (
-        playerId === null ||
-        playerId === undefined
-      ) {
-        return;
-      }
+      if (playerId === null || playerId === undefined) return;
 
       pointsByPlayerId.set(
         String(playerId),
@@ -646,460 +446,210 @@ function rowsForPeriod(
     .map(player => ({
       id: player.id,
       name: player.name,
-      total_points:
-        pointsByPlayerId.get(
-          String(player.id)
-        ) || 0
+      total_points: pointsByPlayerId.get(String(player.id)) || 0
     }))
-    .sort(
-      (firstPlayer, secondPlayer) => {
+    .sort((firstPlayer, secondPlayer) => {
+      const pointDifference =
+        secondPlayer.total_points - firstPlayer.total_points;
 
-        const pointDifference =
-          secondPlayer.total_points -
-          firstPlayer.total_points;
+      if (pointDifference !== 0) return pointDifference;
 
-        if (pointDifference !== 0) {
-          return pointDifference;
-        }
-
-        return firstPlayer.name
-          .localeCompare(
-            secondPlayer.name,
-            "tr"
-          );
-      }
-    );
+      return firstPlayer.name.localeCompare(secondPlayer.name, "tr");
+    });
 }
 
 function renderPeriodViews() {
+  if (!activePeriod) return;
 
-  if (!activePeriod) {
-    return;
-  }
+  const startWeek = periodStart(activePeriod);
+  const endWeek = periodEnd(activePeriod);
 
-  const startWeek =
-    periodStart(
-      activePeriod
-    );
+  const activePeriodRows = rowsForPeriod(activePeriod);
 
-  const endWeek =
-    periodEnd(
-      activePeriod
-    );
+  const activePeriodTopScore = activePeriodRows.length
+    ? activePeriodRows[0].total_points
+    : 0;
 
-  const activePeriodRows =
-    rowsForPeriod(
-      activePeriod
-    );
-
-  const activePeriodTopScore =
-    activePeriodRows.length
-      ? activePeriodRows[0]
-          .total_points
-      : 0;
-
-  $("activePeriodTitle")
-    .textContent =
+  $("activePeriodTitle").textContent =
     `⚡ Aktif Dönem: Hafta ${startWeek}-${endWeek}`;
 
-  $("activePeriodDescription")
-    .textContent =
+  $("activePeriodDescription").textContent =
     `Dönem ${activePeriod} canlı sıralaması. İlk üç oyuncu kürsüde gösterilir.`;
 
-  $("periodBody").innerHTML =
-    activePeriodRows
-      .map(
-        (player, index) => {
+  $("periodBody").innerHTML = activePeriodRows
+    .map((player, index) => {
+      const difference = activePeriodTopScore - player.total_points;
 
-          const difference =
-            activePeriodTopScore -
-            player.total_points;
+      return `
+        <tr>
+          <td>${rankLabel(index)}</td>
+          <td>${player.name}</td>
+          <td class="points">${numberTR(player.total_points)}</td>
+          <td>${index === 0 ? "-" : numberTR(difference)}</td>
+        </tr>
+      `;
+    })
+    .join("");
 
-          return `
-            <tr>
+  const hasActivePeriodPoints = activePeriodRows.some(
+    player => Number(player.total_points) > 0
+  );
 
-              <td>
-                ${rankLabel(index)}
-              </td>
-
-              <td>
-                ${player.name}
-              </td>
-
-              <td class="points">
-                ${numberTR(
-                  player.total_points
-                )}
-              </td>
-
-              <td>
-                ${
-                  index === 0
-                    ? "-"
-                    : numberTR(difference)
-                }
-              </td>
-
-            </tr>
-          `;
-        }
-      )
-      .join("");
-
-  const hasActivePeriodPoints =
-    activePeriodRows.some(
-      player =>
-        Number(player.total_points) > 0
-    );
-
-  $("periodPodium").innerHTML =
-    hasActivePeriodPoints
-      ? activePeriodRows
-          .slice(0, 3)
-          .map(
-            (player, index) => `
-              <div class="pod">
-
-                <div class="medal">
-                  ${
-                    [
-                      "🥇",
-                      "🥈",
-                      "🥉"
-                    ][index]
-                  }
-                </div>
-
-                <div class="name">
-                  ${player.name}
-                </div>
-
-                <div class="points">
-                  ${numberTR(
-                    player.total_points
-                  )}
-                </div>
-
-              </div>
-            `
-          )
-          .join("")
-      : `
-          <div class="card empty-state">
-            Aktif dönem için henüz puan bulunmuyor.
+  $("periodPodium").innerHTML = hasActivePeriodPoints
+    ? activePeriodRows
+        .slice(0, 3)
+        .map((player, index) => `
+          <div class="pod">
+            <div class="medal">${["🥇", "🥈", "🥉"][index]}</div>
+            <div class="name">${player.name}</div>
+            <div class="points">${numberTR(player.total_points)}</div>
           </div>
-        `;
+        `)
+        .join("")
+    : `
+        <div class="card empty-state">
+          Aktif dönem için henüz puan bulunmuyor.
+        </div>
+      `;
 
-  const highestPeriodNumber =
-    Math.max(
-      Number(activePeriod || 1),
-      ...periodRows.map(
-        row =>
-          Number(row.period_no || 0)
-      )
-    );
-
-  const periodNumbers =
-    Array.from(
-      {
-        length: highestPeriodNumber
-      },
-      (_, index) => index + 1
-    );
-
-  renderPeriodPodiums(
-    periodNumbers
+  const highestPeriodNumber = Math.max(
+    Number(activePeriod || 1),
+    ...periodRows.map(row => Number(row.period_no || 0))
   );
 
-  renderMedals(
-    periodNumbers
+  const periodNumbers = Array.from(
+    { length: highestPeriodNumber },
+    (_, index) => index + 1
   );
+
+  renderPeriodPodiums(periodNumbers);
+  renderMedals(periodNumbers);
 }
 
 /* ---------------------------------
    DÖNEM KÜRSÜLERİ
 ---------------------------------- */
 
-function renderPeriodPodiums(
-  periodNumbers
-) {
+function renderPeriodPodiums(periodNumbers) {
+  $("periodPodiums").innerHTML = periodNumbers
+    .map(periodNumber => {
+      const fullPeriodRows = rowsForPeriod(periodNumber);
 
-  $("periodPodiums").innerHTML =
-    periodNumbers
-      .map(periodNumber => {
+      const hasPeriodData = fullPeriodRows.some(
+        player => Number(player.total_points) > 0
+      );
 
-        const fullPeriodRows =
-          rowsForPeriod(
-            periodNumber
-          );
+      const topThree = hasPeriodData ? fullPeriodRows.slice(0, 3) : [];
 
-        const hasPeriodData =
-          fullPeriodRows.some(
-            player =>
-              Number(player.total_points) > 0
-          );
+      const completed = periodEnd(periodNumber) < activeWeek;
+      const current = Number(periodNumber) === Number(activePeriod);
 
-        const topThree =
-          hasPeriodData
-            ? fullPeriodRows.slice(0, 3)
-            : [];
+      const statusText = completed
+        ? "TAMAMLANDI"
+        : current ? "DEVAM EDİYOR" : "YAKINDA";
 
-        const completed =
-          periodEnd(periodNumber) <
-          activeWeek;
+      const cardClass = completed
+        ? "score"
+        : current ? "side" : "ou";
 
-        const current =
-          Number(periodNumber) ===
-          Number(activePeriod);
+      return `
+        <article class="card rule ${cardClass}">
+          <span class="eyebrow">${statusText}</span>
+          <h3>Dönem ${periodNumber}</h3>
+          <p>Hafta ${periodStart(periodNumber)} - ${periodEnd(periodNumber)}</p>
 
-        const statusText =
-          completed
-            ? "TAMAMLANDI"
-            : current
-              ? "DEVAM EDİYOR"
-              : "YAKINDA";
-
-        const cardClass =
-          completed
-            ? "score"
-            : current
-              ? "side"
-              : "ou";
-
-        return `
-          <article
-            class="card rule ${cardClass}">
-
-            <span class="eyebrow">
-              ${statusText}
-            </span>
-
-            <h3>
-              Dönem ${periodNumber}
-            </h3>
-
-            <p>
-              Hafta
-              ${periodStart(periodNumber)}
-              -
-              ${periodEnd(periodNumber)}
-            </p>
-
-            <div class="period-ranking">
-
-              ${
-                topThree.length
-                  ? topThree
-                      .map(
-                        (player, index) => `
-                          <p>
-
-                            <span>
-                              ${
-                                [
-                                  "🥇",
-                                  "🥈",
-                                  "🥉"
-                                ][index]
-                              }
-                            </span>
-
-                            <strong>
-                              ${player.name}
-                            </strong>
-
-                            <span>
-                              ${numberTR(
-                                player.total_points
-                              )}
-                              puan
-                            </span>
-
-                          </p>
-                        `
-                      )
-                      .join("")
-                  : `
-                      <p class="empty-period">
-                        Bu dönem için henüz puan bulunmuyor.
+          <div class="period-ranking">
+            ${
+              topThree.length
+                ? topThree
+                    .map((player, index) => `
+                      <p>
+                        <span>${["🥇", "🥈", "🥉"][index]}</span>
+                        <strong>${player.name}</strong>
+                        <span>${numberTR(player.total_points)} puan</span>
                       </p>
-                    `
-              }
-
-            </div>
-
-          </article>
-        `;
-      })
-      .join("");
+                    `)
+                    .join("")
+                : `
+                    <p class="empty-period">
+                      Bu dönem için henüz puan bulunmuyor.
+                    </p>
+                  `
+            }
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 /* ---------------------------------
    MADALYA TABLOSU
 ---------------------------------- */
 
-function renderMedals(
-  periodNumbers
-) {
+function renderMedals(periodNumbers) {
+  const medals = new Map(
+    players.map(player => [
+      String(player.id),
+      { name: player.name, gold: 0, silver: 0, bronze: 0 }
+    ])
+  );
 
-  const medals =
-    new Map(
-      players.map(
-        player => [
-          String(player.id),
-          {
-            name: player.name,
-            gold: 0,
-            silver: 0,
-            bronze: 0
-          }
-        ]
-      )
+  const completedPeriods = periodNumbers.filter(
+    periodNumber => periodEnd(periodNumber) < activeWeek
+  );
+
+  completedPeriods.forEach(periodNumber => {
+    const periodRanking = rowsForPeriod(periodNumber);
+
+    const hasPeriodPoints = periodRanking.some(
+      player => Number(player.total_points) > 0
     );
 
-  const completedPeriods =
-    periodNumbers.filter(
-      periodNumber =>
-        periodEnd(periodNumber) <
-        activeWeek
-    );
+    if (!hasPeriodPoints) return;
 
-  completedPeriods
-    .forEach(periodNumber => {
+    periodRanking.slice(0, 3).forEach((player, index) => {
+      const medalRecord = medals.get(String(player.id));
+      if (!medalRecord) return;
 
-      const periodRanking =
-        rowsForPeriod(
-          periodNumber
-        );
-
-      const hasPeriodPoints =
-        periodRanking.some(
-          player =>
-            Number(player.total_points) > 0
-        );
-
-      if (!hasPeriodPoints) {
-        return;
-      }
-
-      const topThree =
-        periodRanking.slice(0, 3);
-
-      topThree.forEach(
-        (player, index) => {
-
-          const medalRecord =
-            medals.get(
-              String(player.id)
-            );
-
-          if (!medalRecord) {
-            return;
-          }
-
-          if (index === 0) {
-            medalRecord.gold++;
-          }
-
-          if (index === 1) {
-            medalRecord.silver++;
-          }
-
-          if (index === 2) {
-            medalRecord.bronze++;
-          }
-        }
-      );
+      if (index === 0) medalRecord.gold++;
+      if (index === 1) medalRecord.silver++;
+      if (index === 2) medalRecord.bronze++;
     });
+  });
 
-  const medalRows =
-    [...medals.values()]
-      .sort(
-        (
-          firstPlayer,
-          secondPlayer
-        ) => {
+  const medalRows = [...medals.values()].sort((firstPlayer, secondPlayer) => {
+    if (secondPlayer.gold !== firstPlayer.gold) {
+      return secondPlayer.gold - firstPlayer.gold;
+    }
 
-          if (
-            secondPlayer.gold !==
-            firstPlayer.gold
-          ) {
-            return (
-              secondPlayer.gold -
-              firstPlayer.gold
-            );
-          }
+    if (secondPlayer.silver !== firstPlayer.silver) {
+      return secondPlayer.silver - firstPlayer.silver;
+    }
 
-          if (
-            secondPlayer.silver !==
-            firstPlayer.silver
-          ) {
-            return (
-              secondPlayer.silver -
-              firstPlayer.silver
-            );
-          }
+    if (secondPlayer.bronze !== firstPlayer.bronze) {
+      return secondPlayer.bronze - firstPlayer.bronze;
+    }
 
-          if (
-            secondPlayer.bronze !==
-            firstPlayer.bronze
-          ) {
-            return (
-              secondPlayer.bronze -
-              firstPlayer.bronze
-            );
-          }
+    return firstPlayer.name.localeCompare(secondPlayer.name, "tr");
+  });
 
-          return firstPlayer.name
-            .localeCompare(
-              secondPlayer.name,
-              "tr"
-            );
-        }
-      );
+  $("medalBody").innerHTML = medalRows
+    .map((player, index) => {
+      const totalMedals = player.gold + player.silver + player.bronze;
 
-  $("medalBody").innerHTML =
-    medalRows
-      .map(
-        (player, index) => {
-
-          const totalMedals =
-            player.gold +
-            player.silver +
-            player.bronze;
-
-          return `
-            <tr>
-
-              <td>
-                ${index + 1}
-              </td>
-
-              <td>
-                ${player.name}
-              </td>
-
-              <td>
-                ${player.gold}
-              </td>
-
-              <td>
-                ${player.silver}
-              </td>
-
-              <td>
-                ${player.bronze}
-              </td>
-
-              <td class="points">
-                ${totalMedals}
-              </td>
-
-            </tr>
-          `;
-        }
-      )
-      .join("");
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${player.name}</td>
+          <td>${player.gold}</td>
+          <td>${player.silver}</td>
+          <td>${player.bronze}</td>
+          <td class="points">${totalMedals}</td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 /* ---------------------------------
@@ -1107,33 +657,22 @@ function renderMedals(
 ---------------------------------- */
 
 function renderCompletedMatchSelect() {
-
-  const select =
-    $("completedMatchSelect");
-
-  if (!select) {
-    return;
-  }
+  const select = $("completedMatchSelect");
+  if (!select) return;
 
   if (!completedMatches.length) {
-
     select.innerHTML = `
       <option value="">
         Henüz skoru işlenmiş maç bulunmuyor
       </option>
     `;
-
     return;
   }
 
-  const currentValue =
-    select.value;
+  const currentValue = select.value;
 
   select.innerHTML = `
-    <option value="">
-      Maç seç...
-    </option>
-
+    <option value="">Maç seç...</option>
     ${
       completedMatches
         .map(match => `
@@ -1150,11 +689,7 @@ function renderCompletedMatchSelect() {
 
   if (
     currentValue &&
-    completedMatches.some(
-      match =>
-        String(match.id) ===
-        String(currentValue)
-    )
+    completedMatches.some(match => String(match.id) === String(currentValue))
   ) {
     select.value = currentValue;
   }
@@ -1163,158 +698,98 @@ function renderCompletedMatchSelect() {
 /* point_type -> bileşen eşlemesi */
 
 function normalizePointType(rawType) {
+  const value = String(rawType || "").toLowerCase();
 
-  const value =
-    String(rawType || "")
-      .toLowerCase();
-
-  if (value === "exact_score") {
-    return "scorePoints";
-  }
-
-  if (value === "side") {
-    return "sidePoints";
-  }
-
-  if (value === "over_under") {
-    return "overUnderPoints";
-  }
+  if (value === "exact_score") return "scorePoints";
+  if (value === "side") return "sidePoints";
+  if (value === "over_under") return "overUnderPoints";
 
   return null;
 }
 
 async function loadMatchPoints(matchId) {
+  const resultCard = $("selectedMatchResult");
+  const mvpCards = $("matchMvpCards");
+  const tableBody = $("matchPointsBody");
 
-  const resultCard =
-    $("selectedMatchResult");
-
-  const mvpCards =
-    $("matchMvpCards");
-
-  const tableBody =
-    $("matchPointsBody");
-
-  if (!tableBody) {
-    return;
-  }
+  if (!tableBody) return;
 
   if (!matchId) {
+    resultCard?.classList.add("hidden");
 
-    resultCard
-      ?.classList
-      .add("hidden");
-
-    if (mvpCards) {
-      mvpCards.innerHTML = "";
-    }
+    if (mvpCards) mvpCards.innerHTML = "";
 
     tableBody.innerHTML = `
       <tr>
         <td colspan="7">
-          Puan detaylarını görmek için
-          tamamlanan bir maç seçiniz.
+          Puan detaylarını görmek için tamamlanan bir maç seçiniz.
         </td>
       </tr>
     `;
-
     return;
   }
 
-  const selectedMatch =
-    completedMatches.find(
-      match =>
-        String(match.id) ===
-        String(matchId)
-    );
+  const selectedMatch = completedMatches.find(
+    match => String(match.id) === String(matchId)
+  );
 
   if (!selectedMatch) {
-
     toast("Maç bulunamadı");
+    return;
+  }
 
+  const token = sessionToken();
+
+  if (!token) {
+    handleSessionError({ message: "Oturum gecersiz" });
     return;
   }
 
   tableBody.innerHTML = `
     <tr>
-      <td colspan="7">
-        Maç puanları yükleniyor...
-      </td>
+      <td colspan="7">Maç puanları yükleniyor...</td>
     </tr>
   `;
 
-  const [
-    predictionResponse,
-    pointResponse
-  ] =
-    await Promise.all([
+  const [predictionResponse, pointResponse] = await Promise.all([
+    supabaseClient.rpc("get_my_week_predictions", {
+      p_token: token,
+      p_week: Number(selectedMatch.week)
+    }),
 
-      supabaseClient
-        .rpc(
-          "get_week_predictions",
-          {
-            p_week: Number(selectedMatch.week),
-            p_player_id: currentPlayer
-              ? Number(currentPlayer)
-              : 0
-          }
-        ),
-
-      supabaseClient
-        .from("match_points")
-        .select(
-          "player_id,match_id,point_type,points"
-        )
-        .eq(
-          "match_id",
-          Number(matchId)
-        )
-    ]);
+    supabaseClient
+      .from("match_points")
+      .select("player_id,match_id,point_type,points")
+      .eq("match_id", Number(matchId))
+  ]);
 
   if (predictionResponse.error) {
+    console.error("Tahminler yüklenemedi:", predictionResponse.error);
 
-    console.error(
-      "Tahminler yüklenemedi:",
-      predictionResponse.error
-    );
+    if (handleSessionError(predictionResponse.error)) return;
 
     toast("Maç tahminleri yüklenemedi");
-
     return;
   }
 
   if (pointResponse.error) {
-
-    console.error(
-      "Maç puanları yüklenemedi:",
-      pointResponse.error
-    );
-
+    console.error("Maç puanları yüklenemedi:", pointResponse.error);
     toast("Maç puanları yüklenemedi");
-
     return;
   }
 
-  const predictions =
-    (predictionResponse.data || [])
-      .filter(
-        row =>
-          String(row.match_id) ===
-          String(matchId)
-      );
+  const predictions = (predictionResponse.data || []).filter(
+    row => String(row.match_id) === String(matchId)
+  );
 
-  const pointEntries =
-    pointResponse.data || [];
+  const pointEntries = pointResponse.data || [];
 
-  const pointsByPlayer =
-    new Map();
+  const pointsByPlayer = new Map();
 
   pointEntries.forEach(entry => {
-
-    const key =
-      String(entry.player_id);
+    const key = String(entry.player_id);
 
     if (!pointsByPlayer.has(key)) {
-
       pointsByPlayer.set(key, {
         scorePoints: 0,
         sidePoints: 0,
@@ -1323,428 +798,189 @@ async function loadMatchPoints(matchId) {
       });
     }
 
-    const record =
-      pointsByPlayer.get(key);
+    const record = pointsByPlayer.get(key);
+    const amount = Number(entry.points || 0);
+    const component = normalizePointType(entry.point_type);
 
-    const amount =
-      Number(entry.points || 0);
-
-    const component =
-      normalizePointType(
-        entry.point_type
-      );
-
-    if (component) {
-      record[component] += amount;
-    }
+    if (component) record[component] += amount;
 
     record.totalPoints += amount;
   });
 
-  matchPointRows =
-    players
-      .map(player => {
-
-        const prediction =
-          predictions.find(
-            row =>
-              String(row.player_id) ===
-              String(player.id)
-          );
-
-        const record =
-          pointsByPlayer.get(
-            String(player.id)
-          ) || {
-            scorePoints: 0,
-            sidePoints: 0,
-            overUnderPoints: 0,
-            totalPoints: 0
-          };
-
-        return {
-          id: player.id,
-          name: player.name,
-
-          hasPrediction:
-            Boolean(prediction),
-
-          prediction:
-            prediction
-              ? `${prediction.home_prediction}-${prediction.away_prediction}`
-              : "Tahmin yok",
-
-          scorePoints:
-            record.scorePoints,
-
-          sidePoints:
-            record.sidePoints,
-
-          overUnderPoints:
-            record.overUnderPoints,
-
-          totalPoints:
-            record.totalPoints
-        };
-      })
-      .sort(
-        (firstPlayer, secondPlayer) => {
-
-          const totalDifference =
-            secondPlayer.totalPoints -
-            firstPlayer.totalPoints;
-
-          if (totalDifference !== 0) {
-            return totalDifference;
-          }
-
-          const exactDifference =
-            secondPlayer.scorePoints -
-            firstPlayer.scorePoints;
-
-          if (exactDifference !== 0) {
-            return exactDifference;
-          }
-
-          return firstPlayer.name
-            .localeCompare(
-              secondPlayer.name,
-              "tr"
-            );
-        }
+  matchPointRows = players
+    .map(player => {
+      const prediction = predictions.find(
+        row => String(row.player_id) === String(player.id)
       );
 
-  renderSelectedMatchResult(
-    selectedMatch
-  );
+      const record = pointsByPlayer.get(String(player.id)) || {
+        scorePoints: 0,
+        sidePoints: 0,
+        overUnderPoints: 0,
+        totalPoints: 0
+      };
 
+      return {
+        id: player.id,
+        name: player.name,
+        hasPrediction: Boolean(prediction),
+        prediction: prediction
+          ? `${prediction.home_prediction}-${prediction.away_prediction}`
+          : "Tahmin yok",
+        scorePoints: record.scorePoints,
+        sidePoints: record.sidePoints,
+        overUnderPoints: record.overUnderPoints,
+        totalPoints: record.totalPoints
+      };
+    })
+    .sort((firstPlayer, secondPlayer) => {
+      const totalDifference =
+        secondPlayer.totalPoints - firstPlayer.totalPoints;
+
+      if (totalDifference !== 0) return totalDifference;
+
+      const exactDifference =
+        secondPlayer.scorePoints - firstPlayer.scorePoints;
+
+      if (exactDifference !== 0) return exactDifference;
+
+      return firstPlayer.name.localeCompare(secondPlayer.name, "tr");
+    });
+
+  renderSelectedMatchResult(selectedMatch);
   renderMatchMvpCards();
-
   renderMatchPointsTable();
 }
 
-function renderSelectedMatchResult(
-  match
-) {
+function renderSelectedMatchResult(match) {
+  const resultCard = $("selectedMatchResult");
+  if (!resultCard) return;
 
-  const resultCard =
-    $("selectedMatchResult");
+  const sum = key =>
+    matchPointRows.reduce((total, player) => total + player[key], 0);
 
-  if (!resultCard) {
-    return;
-  }
-
-  const exactScoreDistributed =
-    matchPointRows.reduce(
-      (total, player) =>
-        total + player.scorePoints,
-      0
-    );
-
-  const sideDistributed =
-    matchPointRows.reduce(
-      (total, player) =>
-        total + player.sidePoints,
-      0
-    );
-
-  const overUnderDistributed =
-    matchPointRows.reduce(
-      (total, player) =>
-        total + player.overUnderPoints,
-      0
-    );
-
-  const totalDistributed =
-    matchPointRows.reduce(
-      (total, player) =>
-        total + player.totalPoints,
-      0
-    );
-
-  resultCard
-    .classList
-    .remove("hidden");
+  resultCard.classList.remove("hidden");
 
   resultCard.innerHTML = `
-    <div class="result-week">
-      ${match.week}. HAFTA
-    </div>
+    <div class="result-week">${match.week}. HAFTA</div>
 
     <div class="result-teams">
-
-      <span>
-        ${match.home_team}
-      </span>
-
-      <strong>
-        ${match.home_score}
-        -
-        ${match.away_score}
-      </strong>
-
-      <span>
-        ${match.away_team}
-      </span>
-
+      <span>${match.home_team}</span>
+      <strong>${match.home_score} - ${match.away_score}</strong>
+      <span>${match.away_team}</span>
     </div>
 
     <div class="result-pool-summary">
-
       <div>
         <small>Tam Skor</small>
-        <b>${numberTR(exactScoreDistributed)}</b>
+        <b>${numberTR(sum("scorePoints"))}</b>
       </div>
-
       <div>
         <small>Taraf</small>
-        <b>${numberTR(sideDistributed)}</b>
+        <b>${numberTR(sum("sidePoints"))}</b>
       </div>
-
       <div>
         <small>Alt / Üst</small>
-        <b>${numberTR(overUnderDistributed)}</b>
+        <b>${numberTR(sum("overUnderPoints"))}</b>
       </div>
-
       <div class="total">
         <small>Dağıtılan Toplam</small>
-        <b>${numberTR(totalDistributed)}</b>
+        <b>${numberTR(sum("totalPoints"))}</b>
       </div>
-
     </div>
   `;
 }
 
 function bestInComponent(componentKey) {
+  const candidates = matchPointRows.filter(
+    player => Number(player[componentKey]) > 0
+  );
 
-  const candidates =
-    matchPointRows.filter(
-      player =>
-        Number(player[componentKey]) > 0
-    );
+  if (!candidates.length) return null;
 
-  if (!candidates.length) {
-    return null;
-  }
+  const bestScore = Math.max(
+    ...candidates.map(player => Number(player[componentKey]))
+  );
 
-  const bestScore =
-    Math.max(
-      ...candidates.map(
-        player =>
-          Number(player[componentKey])
-      )
-    );
-
-  const winners =
-    candidates.filter(
-      player =>
-        Number(player[componentKey]) ===
-        bestScore
-    );
+  const winners = candidates.filter(
+    player => Number(player[componentKey]) === bestScore
+  );
 
   return {
-    names:
-      winners
-        .map(player => player.name)
-        .join(", "),
+    names: winners.map(player => player.name).join(", "),
     points: bestScore
   };
 }
 
-function mvpCard(
-  icon,
-  title,
-  winner,
-  extraClass
-) {
-
+function mvpCard(icon, title, winner, extraClass) {
   return `
     <article class="card mvp-card ${extraClass || ""}">
-
-      <div class="mvp-icon">
-        ${icon}
-      </div>
-
-      <div class="mvp-title">
-        ${title}
-      </div>
-
-      <div class="mvp-player">
-        ${
-          winner
-            ? winner.names
-            : "Kimse bilemedi"
-        }
-      </div>
-
-      <div class="mvp-points">
-        ${
-          winner
-            ? `${numberTR(winner.points)} puan`
-            : "-"
-        }
-      </div>
-
+      <div class="mvp-icon">${icon}</div>
+      <div class="mvp-title">${title}</div>
+      <div class="mvp-player">${winner ? winner.names : "Kimse bilemedi"}</div>
+      <div class="mvp-points">${winner ? `${numberTR(winner.points)} puan` : "-"}</div>
     </article>
   `;
 }
 
 function renderMatchMvpCards() {
-
-  const container =
-    $("matchMvpCards");
-
-  if (!container) {
-    return;
-  }
+  const container = $("matchMvpCards");
+  if (!container) return;
 
   container.innerHTML = [
-
-    mvpCard(
-      "🎯",
-      "Tam Skor Kralı",
-      bestInComponent("scorePoints")
-    ),
-
-    mvpCard(
-      "✅",
-      "Taraf Uzmanı",
-      bestInComponent("sidePoints")
-    ),
-
-    mvpCard(
-      "⚽",
-      "Alt / Üst Avcısı",
-      bestInComponent("overUnderPoints")
-    ),
-
-    mvpCard(
-      "🏆",
-      "Maç MVP",
-      bestInComponent("totalPoints"),
-      "winner"
-    )
-
+    mvpCard("🎯", "Tam Skor Kralı", bestInComponent("scorePoints")),
+    mvpCard("✅", "Taraf Uzmanı", bestInComponent("sidePoints")),
+    mvpCard("⚽", "Alt / Üst Avcısı", bestInComponent("overUnderPoints")),
+    mvpCard("🏆", "Maç MVP", bestInComponent("totalPoints"), "winner")
   ].join("");
 }
 
-function renderPointComponent(
-  points,
-  component
-) {
-
-  const numericPoints =
-    Number(points || 0);
+function renderPointComponent(points, component) {
+  const numericPoints = Number(points || 0);
 
   if (numericPoints <= 0) {
-
-    return `
-      <span class="point-chip zero">
-        0
-      </span>
-    `;
+    return `<span class="point-chip zero">0</span>`;
   }
 
-  return `
-    <span class="point-chip ${component}">
-      +${numberTR(numericPoints)}
-    </span>
-  `;
+  return `<span class="point-chip ${component}">+${numberTR(numericPoints)}</span>`;
 }
 
 function renderMatchPointsTable() {
-
-  const body =
-    $("matchPointsBody");
-
-  if (!body) {
-    return;
-  }
+  const body = $("matchPointsBody");
+  if (!body) return;
 
   if (!matchPointRows.length) {
-
     body.innerHTML = `
       <tr>
-        <td colspan="7">
-          Bu maç için puan kaydı bulunamadı.
-        </td>
+        <td colspan="7">Bu maç için puan kaydı bulunamadı.</td>
       </tr>
     `;
-
     return;
   }
 
-  body.innerHTML =
-    matchPointRows
-      .map(
-        (player, index) => {
+  body.innerHTML = matchPointRows
+    .map((player, index) => {
+      const hasPoints = player.totalPoints > 0;
 
-          const hasPoints =
-            player.totalPoints > 0;
-
-          return `
-            <tr class="${
-              index < 3 && hasPoints
-                ? `match-rank-${index + 1}`
-                : ""
-            }">
-
-              <td>
-                ${
-                  hasPoints
-                    ? rankLabel(index)
-                    : index + 1
-                }
-              </td>
-
-              <td>
-                <strong>${player.name}</strong>
-              </td>
-
-              <td>
-                <span class="${
-                  player.hasPrediction
-                    ? "prediction-score"
-                    : "no-prediction"
-                }">
-                  ${player.prediction}
-                </span>
-              </td>
-
-              <td>
-                ${renderPointComponent(
-                  player.scorePoints,
-                  "exact"
-                )}
-              </td>
-
-              <td>
-                ${renderPointComponent(
-                  player.sidePoints,
-                  "side"
-                )}
-              </td>
-
-              <td>
-                ${renderPointComponent(
-                  player.overUnderPoints,
-                  "ou"
-                )}
-              </td>
-
-              <td>
-                <span class="match-total-points">
-                  ${numberTR(
-                    player.totalPoints
-                  )}
-                </span>
-              </td>
-
-            </tr>
-          `;
-        }
-      )
-      .join("");
+      return `
+        <tr class="${index < 3 && hasPoints ? `match-rank-${index + 1}` : ""}">
+          <td>${hasPoints ? rankLabel(index) : index + 1}</td>
+          <td><strong>${player.name}</strong></td>
+          <td>
+            <span class="${player.hasPrediction ? "prediction-score" : "no-prediction"}">
+              ${player.prediction}
+            </span>
+          </td>
+          <td>${renderPointComponent(player.scorePoints, "exact")}</td>
+          <td>${renderPointComponent(player.sidePoints, "side")}</td>
+          <td>${renderPointComponent(player.overUnderPoints, "ou")}</td>
+          <td>
+            <span class="match-total-points">${numberTR(player.totalPoints)}</span>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 /* ---------------------------------
@@ -1752,36 +988,18 @@ function renderMatchPointsTable() {
 ---------------------------------- */
 
 function weekLockTime() {
-
-  if (!matches.length) {
-    return null;
-  }
-
-  const kickoffTimes =
-    matches.map(
-      match =>
-        new Date(
-          match.kickoff_at
-        ).getTime()
-    );
+  if (!matches.length) return null;
 
   return Math.min(
-    ...kickoffTimes
+    ...matches.map(match => new Date(match.kickoff_at).getTime())
   );
 }
 
 function isWeekLocked() {
+  const lockTime = weekLockTime();
+  if (lockTime === null) return false;
 
-  const lockTime =
-    weekLockTime();
-
-  if (lockTime === null) {
-    return false;
-  }
-
-  return (
-    Date.now() >= lockTime
-  );
+  return Date.now() >= lockTime;
 }
 
 /* ---------------------------------
@@ -1789,259 +1007,205 @@ function isWeekLocked() {
 ---------------------------------- */
 
 async function loadPredictions() {
+  const token = sessionToken();
 
-  const {
-    data: weekPredictions,
-    error
-  } =
-    await supabaseClient
-      .rpc(
-        "get_week_predictions",
-        {
-          p_week: Number(activeWeek),
-          p_player_id: Number(currentPlayer)
-        }
-      );
-
-  if (error) {
-
-    console.error(
-      "Tahminler yüklenemedi:",
-      error
-    );
-
-    toast(
-      "Tahminler yüklenemedi"
-    );
-
+  if (!token) {
+    handleSessionError({ message: "Oturum gecersiz" });
     return;
   }
 
-  const saved =
-    (weekPredictions || [])
-      .filter(
-        row =>
-          String(row.player_id) ===
-          String(currentPlayer)
-      );
+  const { data: weekPredictions, error } = await supabaseClient.rpc(
+    "get_my_week_predictions",
+    {
+      p_token: token,
+      p_week: Number(activeWeek)
+    }
+  );
 
-  $("matchGrid").innerHTML =
-    "";
+  if (error) {
+    console.error("Tahminler yüklenemedi:", error);
+
+    if (handleSessionError(error)) return;
+
+    toast("Tahminler yüklenemedi");
+    return;
+  }
+
+  const saved = (weekPredictions || []).filter(
+    row => String(row.player_id) === String(currentPlayer)
+  );
+
+  $("matchGrid").innerHTML = "";
+
+  const locked = isWeekLocked();
 
   for (const match of matches) {
+    const prediction = saved.find(
+      savedPrediction => String(savedPrediction.match_id) === String(match.id)
+    );
 
-    const prediction =
-      saved.find(
-        savedPrediction =>
-          String(
-            savedPrediction.match_id
-          ) ===
-          String(match.id)
-      );
-
-    const locked =
-      isWeekLocked();
-
-    const card =
-      document.createElement(
-        "div"
-      );
-
-    card.className =
-      "match-card";
+    const card = document.createElement("div");
+    card.className = "match-card";
 
     card.innerHTML = `
-
       <div class="match-meta">
-
-        <span>
-          ${match.week}. Hafta
-        </span>
-
-        <span>
-          ${
-            new Date(
-              match.kickoff_at
-            ).toLocaleString(
-              "tr-TR"
-            )
-          }
-        </span>
-
+        <span>${match.week}. Hafta</span>
+        <span>${new Date(match.kickoff_at).toLocaleString("tr-TR")}</span>
       </div>
 
       <div class="teams">
-
-        <span class="team">
-          ${match.home_team}
-        </span>
-
-        <span class="versus">
-          VS
-        </span>
-
-        <span class="team">
-          ${match.away_team}
-        </span>
-
+        <span class="team">${match.home_team}</span>
+        <span class="versus">VS</span>
+        <span class="team">${match.away_team}</span>
       </div>
 
       <div class="score-entry">
-
         <input
           type="number"
           min="0"
           id="h_${match.id}"
-          value="${
-            prediction?.home_prediction
-            ?? ""
-          }"
-          ${
-            locked
-              ? "disabled"
-              : ""
-          }
+          value="${prediction?.home_prediction ?? ""}"
+          ${locked ? "disabled" : ""}
         >
-
-        <span>
-          -
-        </span>
-
+        <span>-</span>
         <input
           type="number"
           min="0"
           id="a_${match.id}"
-          value="${
-            prediction?.away_prediction
-            ?? ""
-          }"
-          ${
-            locked
-              ? "disabled"
-              : ""
-          }
+          value="${prediction?.away_prediction ?? ""}"
+          ${locked ? "disabled" : ""}
         >
-
       </div>
 
       <div class="match-footer">
-
-        <span
-          class="lock-state ${
-            locked
-              ? "locked"
-              : (
-                  prediction
-                    ? "saved"
-                    : ""
-                )
-          }">
-
-          ${
-            locked
-              ? "🔒 Hafta kapandı"
-              : (
-                  prediction
-                    ? "✓ Kaydedildi"
-                    : "Tahmin bekleniyor"
-                )
-          }
-
+        <span class="lock-state ${locked ? "locked" : (prediction ? "saved" : "")}">
+          ${locked ? "🔒 Hafta kapandı" : (prediction ? "✓ Kaydedildi" : "Tahmin bekleniyor")}
         </span>
 
         <button
           class="btn primary"
           onclick="savePrediction(${match.id})"
-          ${
-            locked
-              ? "disabled"
-              : ""
-          }>
+          ${locked ? "disabled" : ""}>
           Kaydet
         </button>
-
       </div>
     `;
 
-    $("matchGrid")
-      .appendChild(card);
+    $("matchGrid").appendChild(card);
   }
-
-  const lockTime =
-    weekLockTime();
-
-  const savedForActiveWeek =
-    saved
-      .filter(savedPrediction =>
-        matches.some(
-          match =>
-            String(match.id) ===
-            String(
-              savedPrediction.match_id
-            )
-        )
-      )
-      .length;
 
   if (!matches.length) {
-
-    $("weekSummary")
-      .textContent =
-      "Aktif hafta için maç bulunamadı.";
-
+    $("weekSummary").textContent = "Aktif hafta için maç bulunamadı.";
     return;
   }
 
-  if (isWeekLocked()) {
+  const savedForActiveWeek = saved.filter(savedPrediction =>
+    matches.some(match => String(match.id) === String(savedPrediction.match_id))
+  ).length;
 
-    $("weekSummary")
-      .textContent =
+  if (locked) {
+    $("weekSummary").textContent =
       `${matches.length} maç · ${savedForActiveWeek} tahmin kayıtlı · 🔒 Hafta kapandı`;
-
     return;
   }
 
-  $("weekSummary")
-    .textContent =
+  $("weekSummary").textContent =
     `${matches.length} maç · ${savedForActiveWeek} tahmin kayıtlı · Son tahmin: ${
-      new Date(
-        lockTime
-      ).toLocaleString(
-        "tr-TR"
-      )
+      new Date(weekLockTime()).toLocaleString("tr-TR")
     }`;
 }
 
 /* ---------------------------------
-   TEK TAHMİN KAYDETME
+   TEK TAHMİN KAYDETME (token ile)
 ---------------------------------- */
 
-window.savePrediction =
-  async function(matchId) {
+window.savePrediction = async function(matchId, options = {}) {
+  const token = sessionToken();
 
-    if (!currentPlayer) {
+  if (!currentPlayer || !token) {
+    handleSessionError({ message: "Oturum gecersiz" });
+    return false;
+  }
 
-      toast(
-        "Oyuncu seçiniz"
-      );
+  if (isWeekLocked()) {
+    toast("Hafta başladı, tahminler kapandı");
+    return false;
+  }
 
-      return false;
-    }
+  const homeInput = $(`h_${matchId}`);
+  const awayInput = $(`a_${matchId}`);
 
-    if (isWeekLocked()) {
+  if (
+    !homeInput ||
+    !awayInput ||
+    homeInput.value === "" ||
+    awayInput.value === ""
+  ) {
+    toast("Skor giriniz");
+    return false;
+  }
 
-      toast(
-        "Hafta başladı, tahminler kapandı"
-      );
+  const homePrediction = Number(homeInput.value);
+  const awayPrediction = Number(awayInput.value);
 
-      return false;
-    }
+  if (
+    !Number.isInteger(homePrediction) ||
+    !Number.isInteger(awayPrediction) ||
+    homePrediction < 0 ||
+    awayPrediction < 0
+  ) {
+    toast("Geçerli bir skor giriniz");
+    return false;
+  }
 
-    const homeInput =
-      $(`h_${matchId}`);
+  const { error } = await supabaseClient.rpc("submit_prediction", {
+    p_token: token,
+    p_match_id: Number(matchId),
+    p_home: homePrediction,
+    p_away: awayPrediction
+  });
 
-    const awayInput =
-      $(`a_${matchId}`);
+  if (error) {
+    console.error("Tahmin kaydedilemedi:", error);
+
+    if (handleSessionError(error)) return false;
+
+    toast(error.message || "Tahmin kaydedilemedi");
+    return false;
+  }
+
+  const state = homeInput
+    .closest(".match-card")
+    ?.querySelector(".lock-state");
+
+  if (state) {
+    state.textContent = "✓ Kaydedildi";
+    state.className = "lock-state saved";
+  }
+
+  if (!options.silent) {
+    toast("Tahmin kaydedildi");
+  }
+
+  return true;
+};
+
+/* ---------------------------------
+   TÜM TAHMİNLERİ KAYDETME
+---------------------------------- */
+
+$("saveAllBtn").addEventListener("click", async () => {
+  if (isWeekLocked()) {
+    toast("Hafta başladı, tahminler kapandı");
+    return;
+  }
+
+  let savedCount = 0;
+  let skippedCount = 0;
+
+  for (const match of matches) {
+    const homeInput = $(`h_${match.id}`);
+    const awayInput = $(`a_${match.id}`);
 
     if (
       !homeInput ||
@@ -2049,453 +1213,212 @@ window.savePrediction =
       homeInput.value === "" ||
       awayInput.value === ""
     ) {
-
-      toast(
-        "Skor giriniz"
-      );
-
-      return false;
+      skippedCount++;
+      continue;
     }
 
-    const homePrediction =
-      Number(
-        homeInput.value
-      );
+    const saved = await window.savePrediction(match.id, { silent: true });
 
-    const awayPrediction =
-      Number(
-        awayInput.value
-      );
+    /* Oturum düştüyse döngüyü durdur */
+    if (!getSession()) return;
 
-    if (
-      !Number.isInteger(
-        homePrediction
-      ) ||
-      !Number.isInteger(
-        awayPrediction
-      ) ||
-      homePrediction < 0 ||
-      awayPrediction < 0
-    ) {
+    if (saved) savedCount++;
+  }
 
-      toast(
-        "Geçerli bir skor giriniz"
-      );
+  toast(`${savedCount} tahmin kaydedildi, ${skippedCount} maç atlandı`);
 
-      return false;
-    }
-
-    const {
-      error
-    } =
-      await supabaseClient
-        .rpc(
-          "submit_prediction",
-          {
-            p_player_id:
-              Number(currentPlayer),
-
-            p_match_id:
-              Number(matchId),
-
-            p_home_prediction:
-              homePrediction,
-
-            p_away_prediction:
-              awayPrediction
-          }
-        );
-
-    if (error) {
-
-      console.error(
-        "Tahmin kaydedilemedi:",
-        error
-      );
-
-      toast(
-        error.message ||
-        "Tahmin kaydedilemedi"
-      );
-
-      return false;
-    }
-
-    const matchCard =
-      homeInput.closest(
-        ".match-card"
-      );
-
-    const state =
-      matchCard
-        ?.querySelector(
-          ".lock-state"
-        );
-
-    if (state) {
-
-      state.textContent =
-        "✓ Kaydedildi";
-
-      state.className =
-        "lock-state saved";
-    }
-
-    return true;
-  };
-
-/* ---------------------------------
-   TÜM TAHMİNLERİ KAYDETME
----------------------------------- */
-
-$("saveAllBtn")
-  .addEventListener(
-    "click",
-    async () => {
-
-      if (isWeekLocked()) {
-
-        toast(
-          "Hafta başladı, tahminler kapandı"
-        );
-
-        return;
-      }
-
-      let savedCount = 0;
-      let skippedCount = 0;
-
-      for (
-        const match
-        of matches
-      ) {
-
-        const homeInput =
-          $(`h_${match.id}`);
-
-        const awayInput =
-          $(`a_${match.id}`);
-
-        if (
-          !homeInput ||
-          !awayInput ||
-          homeInput.value === "" ||
-          awayInput.value === ""
-        ) {
-
-          skippedCount++;
-
-          continue;
-        }
-
-        const saved =
-          await window
-            .savePrediction(
-              match.id
-            );
-
-        if (saved) {
-          savedCount++;
-        }
-      }
-
-      toast(
-        `${savedCount} tahmin kaydedildi, ${skippedCount} maç atlandı`
-      );
-
-      await loadPredictions();
-    }
-  );
+  await loadPredictions();
+});
 
 /* ---------------------------------
    YENİLEME
 ---------------------------------- */
 
-$("refreshBtn")
-  .addEventListener(
-    "click",
-    async () => {
+$("refreshBtn").addEventListener("click", async () => {
+  await loadPlayers();
+  await loadMatches();
+  await loadPeriodLeaderboard();
 
-      await loadPlayers();
+  if (currentPlayer) {
+    await loadPredictions();
+  }
 
-      await loadMatches();
+  toast("Veriler yenilendi");
+});
 
-      await loadPeriodLeaderboard();
+$("refreshMatchPointsBtn")?.addEventListener("click", async () => {
+  await loadPlayers();
+  await loadMatches();
 
-      if (currentPlayer) {
-        await loadPredictions();
-      }
+  const selectedMatchId = $("completedMatchSelect")?.value;
 
-      toast(
-        "Veriler yenilendi"
-      );
-    }
-  );
+  if (selectedMatchId) {
+    await loadMatchPoints(selectedMatchId);
+  }
 
-$("refreshMatchPointsBtn")
-  ?.addEventListener(
-    "click",
-    async () => {
+  toast("Maç puanları yenilendi");
+});
 
-      await loadPlayers();
-
-      await loadMatches();
-
-      const selectedMatchId =
-        $("completedMatchSelect")
-          ?.value;
-
-      if (selectedMatchId) {
-
-        await loadMatchPoints(
-          selectedMatchId
-        );
-      }
-
-      toast(
-        "Maç puanları yenilendi"
-      );
-    }
-  );
-
-$("completedMatchSelect")
-  ?.addEventListener(
-    "change",
-    async event => {
-
-      await loadMatchPoints(
-        event.target.value
-      );
-    }
-  );
+$("completedMatchSelect")?.addEventListener("change", async event => {
+  await loadMatchPoints(event.target.value);
+});
 
 /* ---------------------------------
-   OYUNCU GİRİŞİ
+   OYUNCU GİRİŞİ (PIN)
 ---------------------------------- */
 
-$("loginBtn")
-  .addEventListener(
-    "click",
-    async () => {
+async function handleLogin() {
+  const playerId = $("playerSelect").value;
+  const pin = ($("pinInput")?.value || "").trim();
 
-      currentPlayer =
-        $("playerSelect").value;
+  if (!playerId) {
+    toast("Oyuncu seçiniz");
+    return;
+  }
 
-      if (!currentPlayer) {
+  if (!/^[0-9]{4}$/.test(pin)) {
+    toast("4 haneli PIN giriniz");
+    return;
+  }
 
-        toast(
-          "Oyuncu seçiniz"
-        );
+  const loginBtn = $("loginBtn");
+  loginBtn.disabled = true;
 
-        return;
-      }
+  const { data, error } = await supabaseClient.rpc("login_player", {
+    p_player_id: Number(playerId),
+    p_pin: pin
+  });
 
-      $("loginCard")
-        .classList
-        .add("hidden");
+  loginBtn.disabled = false;
 
-      $("gameArea")
-        .classList
-        .remove("hidden");
+  if (error || !data || !data.length) {
+    console.error("Giriş başarısız:", error);
 
-      const selectedPlayer =
-        players.find(
-          player =>
-            String(player.id) ===
-            String(currentPlayer)
-        );
+    toast(
+      String(error?.message || "").includes("Hatali PIN")
+        ? "PIN hatalı"
+        : "Giriş yapılamadı"
+    );
 
-      $("activePlayerName")
-        .textContent =
-        selectedPlayer
-          ? selectedPlayer.name
-          : "";
+    $("pinInput").value = "";
+    $("pinInput").focus();
+    return;
+  }
 
-      await loadPredictions();
-    }
-  );
+  const result = data[0];
+
+  saveSession({
+    token: result.token,
+    expiresAt: result.expires_at,
+    playerId: String(playerId),
+    playerName: result.player_name
+  });
+
+  $("pinInput").value = "";
+
+  await enterGame(playerId, result.player_name);
+}
+
+$("loginBtn").addEventListener("click", handleLogin);
+
+$("pinInput")?.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    handleLogin();
+  }
+});
 
 /* ---------------------------------
    OYUNCU DEĞİŞTİRME
 ---------------------------------- */
 
-$("logoutBtn")
-  .addEventListener(
-    "click",
-    () => {
-
-      currentPlayer =
-        null;
-
-      $("gameArea")
-        .classList
-        .add("hidden");
-
-      $("loginCard")
-        .classList
-        .remove("hidden");
-    }
-  );
+$("logoutBtn").addEventListener("click", () => {
+  clearSession();
+  showLogin();
+});
 
 /* ---------------------------------
    TEMA
 ---------------------------------- */
 
-$("themeBtn")
-  .addEventListener(
-    "click",
-    () => {
+$("themeBtn").addEventListener("click", () => {
+  const isLight =
+    document.documentElement.getAttribute("data-theme") === "light";
 
-      const isLight =
-        document
-          .documentElement
-          .getAttribute(
-            "data-theme"
-          ) === "light";
-
-      document
-        .documentElement
-        .setAttribute(
-          "data-theme",
-          isLight
-            ? "dark"
-            : "light"
-        );
-
-      $("themeBtn")
-        .textContent =
-        isLight
-          ? "☀"
-          : "🌙";
-    }
+  document.documentElement.setAttribute(
+    "data-theme",
+    isLight ? "dark" : "light"
   );
+
+  $("themeBtn").textContent = isLight ? "☀" : "🌙";
+});
 
 /* ---------------------------------
    SEKME GEÇİŞLERİ
 ---------------------------------- */
 
-document
-  .querySelectorAll(".tab")
-  .forEach(button => {
+document.querySelectorAll(".tab").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.classList.remove("active");
+    });
 
-    button.addEventListener(
-      "click",
-      () => {
+    button.classList.add("active");
 
-        document
-          .querySelectorAll(".tab")
-          .forEach(tab => {
+    document.querySelectorAll(".tab-panel").forEach(panel => {
+      panel.classList.add("hidden");
+    });
 
-            tab.classList
-              .remove("active");
-          });
+    const targetPanel = $(`${button.dataset.tab}Panel`);
 
-        button.classList
-          .add("active");
+    if (targetPanel) {
+      targetPanel.classList.remove("hidden");
+    }
 
-        document
-          .querySelectorAll(
-            ".tab-panel"
-          )
-          .forEach(panel => {
+    if (button.dataset.tab === "matchPoints") {
+      const select = $("completedMatchSelect");
 
-            panel.classList
-              .add("hidden");
-          });
-
-        const targetPanel =
-          $(
-            `${button.dataset.tab}Panel`
-          );
-
-        if (targetPanel) {
-
-          targetPanel
-            .classList
-            .remove("hidden");
-        }
-
-        if (
-          button.dataset.tab ===
-          "matchPoints"
-        ) {
-
-          const select =
-            $("completedMatchSelect");
-
-          if (
-            select &&
-            !select.value &&
-            completedMatches.length
-          ) {
-
-            select.value =
-              String(
-                completedMatches[0].id
-              );
-
-            loadMatchPoints(
-              completedMatches[0].id
-            );
-          }
-        }
-
-        if (
-          button.dataset.tab ===
-          "fixture"
-        ) {
-
-          renderFixtureWeekOptions();
-        }
+      if (select && !select.value && completedMatches.length) {
+        select.value = String(completedMatches[0].id);
+        loadMatchPoints(completedMatches[0].id);
       }
-    );
+    }
+
+    if (button.dataset.tab === "fixture") {
+      renderFixtureWeekOptions();
+    }
   });
+});
 
 /* ---------------------------------
    UYGULAMAYI BAŞLATMA
 ---------------------------------- */
 
 (async () => {
-
-  $("connectionBadge")
-    .textContent =
-    "Bağlanıyor...";
+  $("connectionBadge").textContent = "Bağlanıyor...";
 
   try {
-
     await loadPlayers();
-
     await loadMatches();
-
     await loadPeriodLeaderboard();
 
-    $("connectionBadge")
-      .className =
-      "status online";
+    $("connectionBadge").className = "status online";
+    $("connectionBadge").textContent = "Supabase bağlı";
 
-    $("connectionBadge")
-      .textContent =
-      "Supabase bağlı";
+    /* Kayıtlı oturum varsa PIN sormadan devam et */
+    const session = getSession();
 
+    if (
+      session &&
+      players.some(player => String(player.id) === String(session.playerId))
+    ) {
+      await enterGame(session.playerId, session.playerName);
+    }
   } catch (error) {
+    console.error("Uygulama başlatılamadı:", error);
 
-    console.error(
-      "Uygulama başlatılamadı:",
-      error
-    );
+    $("connectionBadge").className = "status offline";
+    $("connectionBadge").textContent = "Bağlantı hatası";
 
-    $("connectionBadge")
-      .className =
-      "status offline";
-
-    $("connectionBadge")
-      .textContent =
-      "Bağlantı hatası";
-
-    toast(
-      "Uygulama başlatılamadı"
-    );
+    toast("Uygulama başlatılamadı");
   }
-
 })();
-
