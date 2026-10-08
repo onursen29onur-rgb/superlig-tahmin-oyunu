@@ -9,17 +9,11 @@
     content="width=device-width,initial-scale=1,viewport-fit=cover"
   >
 
-  <meta
-    name="theme-color"
-    content="#071127"
-  >
+  <meta name="theme-color" content="#071127">
 
   <title>Süper Lig Tahmin Oyunu</title>
 
-  <link
-    rel="stylesheet"
-    href="style.css"
-  >
+  <link rel="stylesheet" href="style.css">
 
   <!-- PIN ALANI STİLİ -->
   <style>
@@ -54,33 +48,23 @@
     src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
   </script>
 
-  <script
-    defer
-    src="app.js"><
-  /script>
+  <script defer src="app.js"></script>
 </head>
 
 <body>
-
   <div class="app-shell">
 
     <header class="topbar">
-
       <div class="brand">
-
-        <span class="ball">
-          ⚽
-        </span>
+        <span class="ball">⚽</span>
 
         <div>
           <strong>Süper Lig Tahmin</strong>
           <small>2026/27 Sezonu</small>
         </div>
-
       </div>
 
       <div class="top-actions">
-
         <span
           id="connectionBadge"
           class="status offline">
@@ -94,47 +78,32 @@
           aria-label="Temayı değiştir">
           ☀
         </button>
-
       </div>
-
     </header>
 
     <main class="container">
 
       <!-- OYUNCU GİRİŞİ -->
-
       <section
         id="loginCard"
         class="card login-card">
 
-        <span class="eyebrow">
-          OYUNCU GİRİŞİ
-        </span>
+        <span class="eyebrow">OYUNCU GİRİŞİ</span>
 
-        <h1>
-          Süper Lig Tahmin Oyunu
-        </h1>
+        <h1>Süper Lig Tahmin Oyunu</h1>
 
         <p>
           Oyuncunu seç, haftalık tahminlerini gir
           ve sezon yarışını takip et.
         </p>
 
-        <label for="playerSelect">
-          Oyuncu
-        </label>
+        <label for="playerSelect">Oyuncu</label>
 
         <select id="playerSelect">
-          <option value="">
-            Oyuncu seç...
-          </option>
+          <option value="">Oyuncu seç...</option>
         </select>
 
-        <!-- PIN ALANI -->
-
-        <label for="pinInput">
-          PIN
-        </label>
+        <label for="pinInput">PIN</label>
 
         <input
           id="pinInput"
@@ -158,19 +127,13 @@
           Tahminler haftanın ilk maçı başladığında
           otomatik olarak kapanır.
         </p>
-
       </section>
 
       <!-- OYUN ALANI -->
-
-      <section
-        id="gameArea"
-        class="hidden">
+      <section id="gameArea" class="hidden">
 
         <div class="welcome-row">
-
           <div>
-
             <span
               id="activeWeekEyebrow"
               class="eyebrow">
@@ -185,7 +148,6 @@
             <p id="weekSummary">
               Tahminlerin yükleniyor...
             </p>
-
           </div>
 
           <button
@@ -194,11 +156,9 @@
             type="button">
             Oyuncu Değiştir
           </button>
-
         </div>
 
         <!-- 6 ANA SEKME -->
-
         <nav
           class="tabs"
           aria-label="Uygulama bölümleri">
@@ -244,27 +204,20 @@
             type="button">
             🎯 Maç Puanları
           </button>
-
         </nav>
 
         <!-- TAHMİNLER PANELİ -->
-
         <section
           id="predictionsPanel"
           class="tab-panel">
 
           <div class="section-head">
-
             <div>
-
-              <h2 id="matchesTitle">
-                Haftanın Maçları
-              </h2>
+              <h2 id="matchesTitle">Haftanın Maçları</h2>
 
               <p>
                 Skorlarını tek tek veya toplu olarak kaydet.
               </p>
-
             </div>
 
             <button
@@ -273,77 +226,49 @@
               type="button">
               Tümünü Kaydet
             </button>
-
           </div>
 
-          <div
-            id="matchGrid"
-            class="match-grid">
-          </div>
-
+          <div id="matchGrid" class="match-grid"></div>
         </section>
 
-        <!-- FİKSTÜR PANELİ (Tahminden Bağımsız, Herkes Her Haftayı Görebilir) -->
-
+        <!-- FİKSTÜR PANELİ -->
         <section
           id="fixturePanel"
           class="tab-panel hidden">
 
           <div class="section-head">
-
             <div>
-
-              <h2>
-                📅 Fikstür
-              </h2>
+              <h2>📅 Fikstür</h2>
 
               <p>
                 Herhangi bir haftayı seçip maç
                 programını veya sonuçlarını görüntüle.
                 Bu ekran tahmin kilidinden etkilenmez.
               </p>
-
             </div>
-
           </div>
 
           <div class="card result-filter-card">
-
-            <label for="fixtureWeekSelect">
-              Hafta
-            </label>
-
-            <select id="fixtureWeekSelect">
-            </select>
-
+            <label for="fixtureWeekSelect">Hafta</label>
+            <select id="fixtureWeekSelect"></select>
           </div>
 
-          <div
-            id="fixtureList"
-            class="fixture-list">
-          </div>
-
+          <div id="fixtureList" class="fixture-list"></div>
         </section>
 
         <!-- GENEL KLASMAN PANELİ -->
-
         <section
           id="leaderboardPanel"
           class="tab-panel hidden">
 
           <div class="section-head">
-
             <div>
-
-              <h2>
-                🏆 Genel Klasman
-              </h2>
+              <h2>🏆 Genel Klasman</h2>
 
               <p>
                 Sezon başlangıcından itibaren
                 kazanılan toplam puanlar.
               </p>
-
             </div>
 
             <button
@@ -352,144 +277,93 @@
               type="button">
               Yenile
             </button>
-
           </div>
 
-          <div
-            id="podium"
-            class="podium">
-          </div>
+          <div id="podium" class="podium"></div>
 
           <div class="card table-card">
-
             <table>
-
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
                   <th>Puan</th>
                   <th>Lidere Fark</th>
                 </tr>
-
               </thead>
 
-              <tbody id="leaderBody">
-              </tbody>
-
+              <tbody id="leaderBody"></tbody>
             </table>
-
           </div>
-
         </section>
 
         <!-- DÖNEMLER PANELİ -->
-
         <section
           id="periodsPanel"
           class="tab-panel hidden">
 
           <!-- AKTİF DÖNEM -->
-
           <div class="section-head">
-
             <div>
-
-              <h2 id="activePeriodTitle">
-                ⚡ Aktif Dönem
-              </h2>
+              <h2 id="activePeriodTitle">⚡ Aktif Dönem</h2>
 
               <p id="activePeriodDescription">
                 Aktif dört haftalık dönemin canlı sıralaması.
               </p>
-
             </div>
-
           </div>
 
-          <div
-            id="periodPodium"
-            class="podium">
-          </div>
+          <div id="periodPodium" class="podium"></div>
 
           <div class="card table-card">
-
             <table>
-
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
                   <th>Dönem Puanı</th>
                   <th>Lidere Fark</th>
                 </tr>
-
               </thead>
 
-              <tbody id="periodBody">
-              </tbody>
-
+              <tbody id="periodBody"></tbody>
             </table>
-
           </div>
 
           <!-- TÜM DÖNEM KÜRSÜLERİ -->
-
           <div class="section-head">
-
             <div>
-
-              <h2>
-                🥇 Dönem Kürsüleri
-              </h2>
+              <h2>🥇 Dönem Kürsüleri</h2>
 
               <p>
                 Her dört haftalık dönemin
                 ilk üç oyuncusu.
               </p>
-
             </div>
-
           </div>
 
-          <div
-            id="periodPodiums"
-            class="rule-grid">
-          </div>
-
+          <div id="periodPodiums" class="rule-grid"></div>
         </section>
 
         <!-- MADALYALAR PANELİ -->
-
         <section
           id="medalsPanel"
           class="tab-panel hidden">
 
           <div class="section-head">
-
             <div>
-
-              <h2>
-                🏅 Madalya Tablosu
-              </h2>
+              <h2>🏅 Madalya Tablosu</h2>
 
               <p>
                 Yalnızca tamamlanan dönemlerin
                 ilk üç dereceleri sayılır.
               </p>
-
             </div>
-
           </div>
 
           <div class="card table-card">
-
             <table>
-
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
@@ -498,37 +372,26 @@
                   <th>🥉</th>
                   <th>Toplam</th>
                 </tr>
-
               </thead>
 
-              <tbody id="medalBody">
-              </tbody>
-
+              <tbody id="medalBody"></tbody>
             </table>
-
           </div>
-
         </section>
 
         <!-- MAÇ PUANLARI PANELİ -->
-
         <section
           id="matchPointsPanel"
           class="tab-panel hidden">
 
           <div class="section-head">
-
             <div>
-
-              <h2>
-                🎯 Maç Puanları
-              </h2>
+              <h2>🎯 Maç Puanları</h2>
 
               <p>
                 Tamamlanan maçlarda oyuncuların tahminleri,
                 puan kırılımları ve maç performansları.
               </p>
-
             </div>
 
             <button
@@ -537,23 +400,16 @@
               type="button">
               Yenile
             </button>
-
           </div>
 
           <div class="card result-filter-card">
-
             <label for="completedMatchSelect">
               Tamamlanan Maç
             </label>
 
             <select id="completedMatchSelect">
-
-              <option value="">
-                Maç seç...
-              </option>
-
+              <option value="">Maç seç...</option>
             </select>
-
           </div>
 
           <div
@@ -561,17 +417,11 @@
             class="selected-match-result hidden">
           </div>
 
-          <div
-            id="matchMvpCards"
-            class="mvp-grid">
-          </div>
+          <div id="matchMvpCards" class="mvp-grid"></div>
 
           <div class="card table-card match-points-table-card">
-
             <table class="match-points-table">
-
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
@@ -581,32 +431,22 @@
                   <th>⚽ Alt / Üst</th>
                   <th>🏆 Toplam</th>
                 </tr>
-
               </thead>
 
               <tbody id="matchPointsBody">
-
                 <tr>
-
                   <td colspan="7">
                     Puan detaylarını görmek için
                     tamamlanan bir maç seçiniz.
                   </td>
-
                 </tr>
-
               </tbody>
-
             </table>
-
           </div>
-
         </section>
 
       </section>
-
     </main>
-
   </div>
 
   <div
@@ -615,7 +455,6 @@
     role="status"
     aria-live="polite">
   </div>
-
 </body>
 
 </html>
