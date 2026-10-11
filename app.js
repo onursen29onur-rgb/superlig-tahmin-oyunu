@@ -2551,3 +2551,662 @@ document.addEventListener("visibilitychange", () => {
     toast(error.message || "Uygulama başlatılamadı");
   }
 })();
+/* =========================================
+   KARŞILAŞTIRMA HAFTALIK TOPLAM GÜNCELLEMESİ
+   Bu kodu app.js dosyasının en altına ekle.
+========================================= */
+
+/* Haftalık toplam satırı stilleri */
+if (!document.getElementById("comparisonWeeklyTotalStyles")) {
+  const comparisonWeeklyTotalStyle = document.createElement("style");
+
+  comparisonWeeklyTotalStyle.id = "comparisonWeeklyTotalStyles";
+
+  comparisonWeeklyTotalStyle.textContent = `
+    .comparison-table tfoot td {
+      position: sticky;
+      bottom: 0;
+      z-index: 4;
+      padding: 14px 8px;
+      background: var(--card, #111827);
+      border-top: 2px solid var(--gold, #f8c644);
+      box-shadow: 0 -6px 14px rgba(0, 0, 0, .18);
+    }
+
+    .comparison-table tfoot td:first-child {
+      z-index: 5;
+    }
+
+    .comparison-total-label {
+      display: block;
+      color: var(--gold, #f8c644);
+      font-weight: 900;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .comparison-total-points {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 64px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: var(--gold, #f8c644);
+      background: rgba(248, 198, 68, .12);
+      font-size: 14px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .comparison-total-points.leader {
+      color: #111827;
+      background: var(--gold, #f8c644);
+      box-shadow: 0 0 0 3px rgba(248, 198, 68, .15);
+    }
+
+    .comparison-total-note {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      .comparison-table tfoot td {
+        padding: 12px 8px;
+      }
+
+      .comparison-total-points {
+        min-width: 56px;
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+
+      .comparison-total-label {
+        font-size: 11px;
+      }
+    }
+  `;
+
+  document.head.appendChild(comparisonWeeklyTotalStyle);
+}
+
+/*
+ * Mevcut renderComparison fonksiyonunun
+ * haftalık toplam destekli güncel sürümü.
+ */
+renderComparison = async function(quiet = false) {
+  const request = ++comparisonRequest;
+  const container = $("comparisonContent");
+  const select = $("comparisonWeekSelect");
+
+  if (!container || !select) return;
+
+  if (!select.value) {
+    container.innerHTML =
+      '<div class="feature-message">Hafta bulunamadı.</div>';
+
+    return;
+  }
+
+  const week = Number(select.value);
+  const token = sessionToken();
+  const viewer = String(currentPlayer);
+
+  if (!token || !currentPlayer) {
+    handleSessionError({
+      message: "Oturum gecersiz"
+    });
+
+    return;
+  }
+
+  const stillCurrent = () =>
+    request === comparisonRequest &&
+    token === sessionToken() &&
+    viewer === String(currentPlayer) &&
+    week === Number(select.value);
+
+  if (!quiet) {
+    container.innerHTML =
+      '<div class="feature-message">' +
+      "Tahminler ve puanlar yükleniyor..." +
+      "</div>";
+  }
+
+  try {
+    const matchResponse = await supabaseClient
+      .from("matches")
+      .select("*")
+      .eq("week", week)
+      .neq("home_team", "HISTORICAL")
+      .order("kickoff_at", {
+        ascending: true
+      });
+
+    if (!stillCurrent()) return;
+
+    if (matchResponse.error) {
+      throw matchResponse.error;
+    }
+
+    const weekMatches = matchResponse.data || [];
+    const opening = weekOpeningTime(weekMatches);
+
+    if (!weekMatches.length) {
+      container.innerHTML =
+        '<div class="feature-message">' +
+        "Bu hafta için maç bulunamadı." +
+        "</div>";
+
+      return;
+    }
+
+    if (opening === null) {
+      container.innerHTML =
+        '<div class="feature-message">' +
+        "Maç saatleri geçersiz. Karşılaştırma açılmadı." +
+        "</div>";
+
+      return;
+    }
+
+    if (Date.now() < opening) {
+      container.innerHTML = `
+        <div class="feature-message">
+          🔒 Bu haftanın tahminleri henüz gizli.
+          <br><br>
+          Açılış:
+          ${escapeHTML(
+            new Date(opening).toLocaleString("tr-TR")
+          )}
+        </div>
+      `;
+
+      return;
+    }
+
+    const finishedIds = weekMatches
+      .filter(match =>
+        matchState(match) === "finished"
+      )
+      .map(match => match.id);
+
+    const [
+      predictionResponse,
+      pointResponse
+    ] = await Promise.all([
+      supabaseClient.rpc(
+        "get_my_week_predictions",
+        {
+          p_token: token,
+          p_week: week
+        }
+      ),
+
+      finishedIds.length
+        ? supabaseClient
+            .from("match_points")
+            .select(
+              "player_id,match_id,point_type,points"
+            )
+            .in("match_id", finishedIds)
+        : Promise.resolve({
+            data: [],
+            error: null
+          })
+    ]);
+
+    if (!stillCurrent()) return;
+
+    if (predictionResponse.error) {
+      throw predictionResponse.error;
+    }
+
+    if (pointResponse.error) {
+      throw pointResponse.error;
+    }
+
+    const rows = predictionResponse.data || [];
+
+    const predictionMap = new Map(
+      rows.map(row => [
+        `${row.match_id}:${row.player_id}`,
+        row
+      ])
+    );
+
+    /*
+     * Biten maçların match_points tablosundaki
+     * puanlarını maç ve oyuncu bazında toplar.
+     */
+    const storedPoints = aggregatePoints(
+      pointResponse.data || []
+    );
+
+    /*
+     * Canlı maçların puanlarını mevcut skor
+     * üzerinden hesaplar.
+     */
+    const livePoints = new Map();
+
+    for (const match of weekMatches) {
+      if (matchState(match) !== "live") {
+        continue;
+      }
+
+      const calculatedPoints =
+        calculateLivePoints(match, rows);
+
+      calculatedPoints.forEach(
+        (record, key) => {
+          livePoints.set(key, record);
+        }
+      );
+    }
+
+    /*
+     * Oyuncular karşılaştırma tablosunda
+     * alfabetik olarak görüntülenir.
+     */
+    const orderedPlayers = [...players].sort(
+      (playerA, playerB) =>
+        playerA.name.localeCompare(
+          playerB.name,
+          "tr"
+        )
+    );
+
+    /*
+     * Her oyuncunun seçilen haftada kazandığı
+     * toplam puanı hesaplar.
+     *
+     * Canlı maçlar:
+     * Anlık hesaplanan puan kullanılır.
+     *
+     * Biten maçlar:
+     * match_points tablosundaki puan kullanılır.
+     *
+     * Başlamayan veya skor bulunmayan maçlar:
+     * Toplama dahil edilmez.
+     */
+    const weeklyTotals = new Map(
+      orderedPlayers.map(player => [
+        String(player.id),
+        0
+      ])
+    );
+
+    for (const match of weekMatches) {
+      const state = matchState(match);
+
+      if (
+        state !== "live" &&
+        state !== "finished"
+      ) {
+        continue;
+      }
+
+      if (!hasMatchScore(match)) {
+        continue;
+      }
+
+      for (const player of orderedPlayers) {
+        const playerId = String(player.id);
+        const key = `${match.id}:${player.id}`;
+
+        const pointRecord = (
+          state === "live"
+            ? livePoints.get(key)
+            : storedPoints.get(key)
+        ) || emptyPoints();
+
+        const currentTotal =
+          Number(
+            weeklyTotals.get(playerId) || 0
+          );
+
+        const matchTotal =
+          Number(
+            pointRecord.totalPoints || 0
+          );
+
+        weeklyTotals.set(
+          playerId,
+          Math.round(
+            (currentTotal + matchTotal) * 100
+          ) / 100
+        );
+      }
+    }
+
+    /*
+     * Haftanın en yüksek puanı.
+     * Eşitlik durumunda tüm liderler vurgulanır.
+     */
+    const highestWeeklyTotal = Math.max(
+      0,
+      ...weeklyTotals.values()
+    );
+
+    function pointHTML(
+      match,
+      player,
+      prediction
+    ) {
+      if (!validPrediction(prediction)) {
+        return (
+          '<small class="cmp-points muted">' +
+          "Tahmin yok" +
+          "</small>"
+        );
+      }
+
+      const state = matchState(match);
+
+      if (state === "upcoming") {
+        return (
+          '<small class="cmp-points muted">' +
+          "Bekliyor" +
+          "</small>"
+        );
+      }
+
+      if (state === "other") {
+        return (
+          '<small class="cmp-points muted">' +
+          "Durum bekleniyor" +
+          "</small>"
+        );
+      }
+
+      if (!hasMatchScore(match)) {
+        return (
+          '<small class="cmp-points muted">' +
+          "Skor bekleniyor" +
+          "</small>"
+        );
+      }
+
+      const key =
+        `${match.id}:${player.id}`;
+
+      const record = (
+        state === "live"
+          ? livePoints.get(key)
+          : storedPoints.get(key)
+      ) || emptyPoints();
+
+      const detail =
+        `Tam skor: ${numberTR(
+          record.scorePoints
+        )} · ` +
+        `Taraf: ${numberTR(
+          record.sidePoints
+        )} · ` +
+        `Alt/Üst: ${numberTR(
+          record.overUnderPoints
+        )}`;
+
+      const amount =
+        `${
+          record.totalPoints > 0
+            ? "+"
+            : ""
+        }${numberTR(record.totalPoints)}`;
+
+      return `
+        <small
+          class="cmp-points ${state}"
+          title="${escapeHTML(detail)}">
+          ${
+            state === "live"
+              ? `🟢 Canlı: ${amount} puan`
+              : `✓ ${amount} puan`
+          }
+        </small>
+      `;
+    }
+
+    const scrollLeft = container.scrollLeft;
+
+    container.innerHTML = `
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Maç</th>
+
+            ${orderedPlayers.map(player => `
+              <th class="${
+                String(player.id) === viewer
+                  ? "my-column"
+                  : ""
+              }">
+                ${escapeHTML(player.name)}
+              </th>
+            `).join("")}
+          </tr>
+        </thead>
+
+        <tbody>
+          ${weekMatches.map(match => {
+            const state = matchState(match);
+
+            return `
+              <tr>
+                <td>
+                  <div class="comparison-match">
+                    ${teamBadge(
+                      match.home_team_badge,
+                      match.home_team
+                    )}
+
+                    <span>
+                      ${escapeHTML(
+                        match.home_team
+                      )}
+                    </span>
+                  </div>
+
+                  <div class="comparison-match">
+                    ${teamBadge(
+                      match.away_team_badge,
+                      match.away_team
+                    )}
+
+                    <span>
+                      ${escapeHTML(
+                        match.away_team
+                      )}
+                    </span>
+                  </div>
+
+                  <small class="comparison-result ${
+                    state === "live"
+                      ? "live"
+                      : ""
+                  }">
+                    ${escapeHTML(
+                      resultLabel(match)
+                    )}
+                  </small>
+                </td>
+
+                ${orderedPlayers.map(player => {
+                  const key =
+                    `${match.id}:${player.id}`;
+
+                  const prediction =
+                    predictionMap.get(key);
+
+                  const valid =
+                    validPrediction(prediction);
+
+                  const exact =
+                    valid &&
+                    state === "finished" &&
+                    hasMatchScore(match) &&
+                    Number(
+                      prediction.home_prediction
+                    ) ===
+                      Number(match.home_score) &&
+                    Number(
+                      prediction.away_prediction
+                    ) ===
+                      Number(match.away_score);
+
+                  const classes = [
+                    String(player.id) === viewer
+                      ? "my-column"
+                      : "",
+                    exact
+                      ? "exact-hit"
+                      : "",
+                    !valid
+                      ? "missing-prediction"
+                      : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+
+                  return `
+                    <td class="${classes}">
+                      <div class="cmp-prediction">
+                        ${
+                          valid
+                            ? `${escapeHTML(
+                                prediction.home_prediction
+                              )}-${escapeHTML(
+                                prediction.away_prediction
+                              )}${
+                                exact
+                                  ? " 🎯"
+                                  : ""
+                              }`
+                            : "—"
+                        }
+                      </div>
+
+                      ${pointHTML(
+                        match,
+                        player,
+                        prediction
+                      )}
+                    </td>
+                  `;
+                }).join("")}
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <td>
+              <span class="comparison-total-label">
+                🏆 HAFTALIK TOPLAM
+              </span>
+
+              <small class="comparison-total-note">
+                Canlı ve biten maçlar
+              </small>
+            </td>
+
+            ${orderedPlayers.map(player => {
+              const playerId =
+                String(player.id);
+
+              const total = Number(
+                weeklyTotals.get(playerId) || 0
+              );
+
+              const isLeader =
+                highestWeeklyTotal > 0 &&
+                total === highestWeeklyTotal;
+
+              const isViewer =
+                playerId === viewer;
+
+              return `
+                <td class="${
+                  isViewer
+                    ? "my-column"
+                    : ""
+                }">
+                  <span class="comparison-total-points ${
+                    isLeader
+                      ? "leader"
+                      : ""
+                  }">
+                    ${
+                      isLeader
+                        ? "🏆 "
+                        : ""
+                    }
+
+                    ${numberTR(total)}
+                  </span>
+
+                  <small class="comparison-total-note">
+                    puan
+                  </small>
+                </td>
+              `;
+            }).join("")}
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="cmp-update-note">
+        Son veri çekimi:
+        ${escapeHTML(
+          new Date().toLocaleTimeString(
+            "tr-TR"
+          )
+        )}
+
+        <br>
+
+        Canlı puanlar son alınan skora göre hesaplanır.
+        Biten maçlarda kayıtlı puanlar gösterilir.
+
+        <br>
+
+        Haftalık toplam; canlı ve biten maçlardan
+        kazanılan puanların toplamıdır.
+      </div>
+    `;
+
+    /*
+     * Otomatik yenilemede kullanıcının yatay
+     * kaydırma konumunu korur.
+     */
+    if (quiet) {
+      container.scrollLeft = scrollLeft;
+    }
+  } catch (error) {
+    if (!stillCurrent()) return;
+
+    console.error(
+      "Karşılaştırma hatası:",
+      error
+    );
+
+    if (handleSessionError(error)) {
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="feature-message">
+        Güncel veri alınamadı.
+        <br>
+        ${escapeHTML(
+          error.message || ""
+        )}
+      </div>
+    `;
+  }
+};
