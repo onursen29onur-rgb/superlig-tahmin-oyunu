@@ -3210,3 +3210,282 @@ renderComparison = async function(quiet = false) {
     `;
   }
 };
+/* =========================================
+   CANLI DAKİKA GÖSTERİMİ
+   Bu bloğu app.js dosyasının en altına ekle.
+========================================= */
+
+if (!document.getElementById("liveClockStyles")) {
+  const liveClockStyle = document.createElement("style");
+  liveClockStyle.id = "liveClockStyles";
+
+  liveClockStyle.textContent = `
+    .live-clock {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: rgba(232, 37, 43, .14);
+      color: #ff5a5f;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .live-clock::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ff2d36;
+      animation: liveClockPulse 1.4s ease-in-out infinite;
+    }
+
+    .live-clock.halftime {
+      background: rgba(248, 198, 68, .14);
+      color: var(--gold, #f8c644);
+    }
+
+    .live-clock.halftime::before {
+      background: var(--gold, #f8c644);
+      animation: none;
+    }
+
+    .fixture-status .live-clock {
+      margin-left: 6px;
+    }
+
+    @keyframes liveClockPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .35; transform: scale(.75); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .live-clock::before { animation: none; }
+    }
+  `;
+
+  document.head.appendChild(liveClockStyle);
+}
+
+/* Maçın canlı dakikasını metin olarak döndürür. */
+function liveClockText(match) {
+  const status = String(match.status || "").toUpperCase();
+
+  if (status === "HT") return "Devre arası";
+  if (status === "ET" || status === "BT") return "Uzatma";
+  if (status === "P") return "Penaltılar";
+
+  const clock = String(match.match_clock || "").trim();
+
+  return clock || "Canlı";
+}
+
+/* Canlı dakika rozeti HTML'i. */
+function liveClockBadge(match) {
+  if (matchState(match) !== "live") return "";
+
+  const status = String(match.status || "").toUpperCase();
+
+  return `
+    <span class="live-clock ${status === "HT" ? "halftime" : ""}">
+      ${escapeHTML(liveClockText(match))}
+    </span>
+  `;
+}
+
+/* Karşılaştırma tablosundaki sonuç satırı. */
+resultLabel = function(match) {
+  const state = matchState(match);
+
+  const score = hasMatchScore(match)
+    ? `${match.home_score}-${match.away_score}`
+    : "Skor bekleniyor";
+
+  if (state === "finished") return `Sonuç: ${score}`;
+  if (state === "live") return `🔴 ${liveClockText(match)} · ${score}`;
+  if (state === "upcoming") return "Henüz başlamadı";
+
+  return `Durum: ${match.status || "Bilinmiyor"}`;
+};
+
+/* Fikstür listesi: canlı maçlarda dakika rozeti. */
+renderFixtureList = function(week) {
+  const container = $("fixtureList");
+  if (!container) return;
+
+  const rows = allMatches
+    .filter(match => Number(match.week) === Number(week))
+    .sort((a, b) =>
+      new Date(a.kickoff_at) - new Date(b.kickoff_at)
+    );
+
+  if (!rows.length) {
+    container.innerHTML =
+      '<p class="empty-state">Bu hafta için maç bulunamadı.</p>';
+    return;
+  }
+
+  container.innerHTML = rows.map(match => {
+    const state = matchState(match);
+    const cssState = state === "other" ? "upcoming" : state;
+
+    const display = ["live", "finished"].includes(state)
+      ? hasMatchScore(match)
+        ? `${match.home_score} - ${match.away_score}`
+        : "Skor bekleniyor"
+      : new Date(match.kickoff_at).toLocaleString("tr-TR", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+
+    const label = state === "finished"
+      ? "✓ Tamamlandı"
+      : state === "live"
+        ? ""
+        : state === "upcoming"
+          ? "Henüz oynanmadı"
+          : `Durum: ${match.status || "Bilinmiyor"}`;
+
+    return `
+      <div class="fixture-row ${cssState}">
+        <span class="fixture-team home">
+          <span class="team-name">${escapeHTML(match.home_team)}</span>
+          ${teamBadge(match.home_team_badge, match.home_team)}
+        </span>
+
+        <span class="fixture-score">${escapeHTML(display)}</span>
+
+        <span class="fixture-team away">
+          ${teamBadge(match.away_team_badge, match.away_team)}
+          <span class="team-name">${escapeHTML(match.away_team)}</span>
+        </span>
+
+        <span class="fixture-status ${cssState}">
+          ${escapeHTML(label)}${liveClockBadge(match)}
+        </span>
+      </div>
+    `;
+  }).join("");
+};
+
+/* Maç seçici: canlı maçlarda dakika bilgisi. */
+renderCompletedMatchSelect = function() {
+  const select = $("completedMatchSelect");
+  if (!select) return;
+
+  const previous = select.value;
+
+  select.innerHTML =
+    '<option value="">Canlı veya biten maç seç...</option>' +
+    completedMatches.map(match => {
+      const live = matchState(match) === "live";
+
+      const tag = live
+        ? `🔴 ${liveClockText(match)}`
+        : "✓ BİTTİ";
+
+      const score = hasMatchScore(match)
+        ? `${match.home_score}-${match.away_score}`
+        : "Skor bekleniyor";
+
+      return `
+        <option value="${escapeHTML(match.id)}">
+          ${escapeHTML(tag)} ·
+          ${escapeHTML(match.week)}. Hafta ·
+          ${escapeHTML(match.home_team)}
+          ${escapeHTML(score)}
+          ${escapeHTML(match.away_team)}
+        </option>
+      `;
+    }).join("");
+
+  if (completedMatches.some(match =>
+    String(match.id) === previous
+  )) {
+    select.value = previous;
+  }
+};
+
+/* Seçili maç kartı: skorun yanında canlı dakika. */
+renderSelectedMatchResult = function(match) {
+  const card = $("selectedMatchResult");
+  if (!card) return;
+
+  const live = matchState(match) === "live";
+
+  const sum = key =>
+    matchPointRows.reduce((total, row) => total + row[key], 0);
+
+  card.classList.remove("hidden");
+
+  card.innerHTML = `
+    <div class="result-week">
+      ${escapeHTML(match.week)}. HAFTA
+    </div>
+
+    <div class="${live ? "match-live-label" : "feature-note"}">
+      ${
+        live
+          ? `🟢 Canlı · Puanlar ve MVP değişebilir ${liveClockBadge(match)}`
+          : "✓ Maç tamamlandı · Kayıtlı puanlar"
+      }
+    </div>
+
+    <div class="result-teams">
+      <span class="result-team">
+        <span class="team-name">${escapeHTML(match.home_team)}</span>
+        ${teamBadge(match.home_team_badge, match.home_team)}
+      </span>
+
+      <strong>
+        ${escapeHTML(match.home_score)} -
+        ${escapeHTML(match.away_score)}
+      </strong>
+
+      <span class="result-team">
+        ${teamBadge(match.away_team_badge, match.away_team)}
+        <span class="team-name">${escapeHTML(match.away_team)}</span>
+      </span>
+    </div>
+
+    <div class="result-pool-summary">
+      <div>
+        <small>Tam Skor</small>
+        <b>${numberTR(sum("scorePoints"))}</b>
+      </div>
+      <div>
+        <small>Taraf</small>
+        <b>${numberTR(sum("sidePoints"))}</b>
+      </div>
+      <div>
+        <small>Alt / Üst</small>
+        <b>${numberTR(sum("overUnderPoints"))}</b>
+      </div>
+      <div class="total">
+        <small>${live ? "Anlık Toplam" : "Dağıtılan Toplam"}</small>
+        <b>${numberTR(sum("totalPoints"))}</b>
+      </div>
+    </div>
+
+    <div class="cmp-update-note">
+      Son veri çekimi:
+      ${escapeHTML(new Date().toLocaleTimeString("tr-TR"))}
+      ${
+        live
+          ? "<br>Hesaplama son alınan skora dayanır; maç bitene kadar değişebilir."
+          : ""
+      }
+    </div>
+  `;
+};
+
+/* Fikstür görünümünü dakika ile yeniden çiz. */
+if ($("fixtureWeekSelect")?.value) {
+  renderFixtureList(Number($("fixtureWeekSelect").value));
+}
