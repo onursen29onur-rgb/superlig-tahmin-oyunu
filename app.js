@@ -3489,3 +3489,40 @@ renderSelectedMatchResult = function(match) {
 if ($("fixtureWeekSelect")?.value) {
   renderFixtureList(Number($("fixtureWeekSelect").value));
 }
+setupSimulation();
+
+/* Simülasyon sekmesini garanti olarak görünür ve çalışır hale getir */
+const simulationTabButton = document.querySelector(
+  '.tab[data-tab="simulation"]'
+);
+
+if (simulationTabButton) {
+  simulationTabButton.style.display = "";
+
+  simulationTabButton.onclick = async function(event) {
+    event.preventDefault();
+
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.classList.remove("active");
+    });
+
+    document.querySelectorAll(".tab-panel").forEach(panel => {
+      panel.classList.add("hidden");
+    });
+
+    simulationTabButton.classList.add("active");
+
+    const panel = $("simulationPanel");
+
+    if (panel) {
+      panel.classList.remove("hidden");
+    }
+
+    try {
+      await loadMatches();
+      renderSimulationOptions();
+    } catch (error) {
+      toast(error.message || "Simülasyon açılamadı");
+    }
+  };
+}
