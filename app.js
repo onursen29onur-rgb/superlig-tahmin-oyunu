@@ -3540,3 +3540,1187 @@ if ($("fixtureWeekSelect")?.value) {
     panel.classList.remove("hidden");
   });
 })();
+/* =========================================
+   🔮 SKOR SİMÜLASYONU
+   Supabase'e hiçbir veri YAZMAZ.
+   150 / 100 / 50 havuz sistemini kullanır.
+========================================= */
+
+/* -----------------------------
+   SİMÜLASYON STİLLERİ
+----------------------------- */
+
+if (!document.getElementById("simulationStyles")) {
+  const style = document.createElement("style");
+
+  style.id = "simulationStyles";
+
+  style.textContent = `
+
+    .simulation-filter {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .simulation-field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .simulation-field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .simulation-match-card {
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+
+    .simulation-match-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .simulation-team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+      text-align: center;
+      min-width: 0;
+    }
+
+    .simulation-team .team-badge {
+      width: 48px;
+      height: 48px;
+    }
+
+    .simulation-team-name {
+      font-size: 14px;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .simulation-score-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .simulation-score-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .simulation-score-btn {
+      width: 44px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel2);
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .simulation-score-btn:active {
+      transform: scale(.95);
+    }
+
+    .simulation-score-input {
+      width: 58px;
+      height: 54px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel2);
+      color: var(--text);
+      font-size: 24px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .simulation-score-separator {
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .simulation-current {
+      margin-top: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .simulation-result-title {
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .simulation-result-title strong {
+      color: var(--gold, #f8c644);
+    }
+
+    .simulation-ranking {
+      display: grid;
+      gap: 9px;
+    }
+
+    .simulation-player {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+
+      padding: 13px 15px;
+
+      border-radius: 12px;
+
+      background:
+        rgba(148, 163, 184, .07);
+    }
+
+    .simulation-player.leader {
+      border:
+        1px solid rgba(248, 198, 68, .40);
+
+      background:
+        rgba(248, 198, 68, .10);
+    }
+
+    .simulation-player.me {
+      box-shadow:
+        inset 3px 0 0
+        var(--cyan, #28c8ff);
+    }
+
+    .simulation-player-name {
+      font-weight: 800;
+    }
+
+    .simulation-player-points {
+      color: var(--gold, #f8c644);
+      font-size: 17px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .simulation-pools {
+      display: grid;
+      grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+      gap: 9px;
+      margin-top: 18px;
+    }
+
+    .simulation-pool {
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+
+      background:
+        rgba(148, 163, 184, .07);
+    }
+
+    .simulation-pool small {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+    }
+
+    .simulation-pool strong {
+      font-size: 16px;
+    }
+
+    .simulation-warning {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .simulation-empty {
+      padding: 25px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+
+      .simulation-filter {
+        grid-template-columns: 1fr;
+      }
+
+      .simulation-match-header {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .simulation-score-box {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
+      .simulation-team:first-child {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .simulation-team:last-child {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .simulation-pools {
+        grid-template-columns: 1fr;
+      }
+    }
+
+  `;
+
+  document.head.appendChild(style);
+}
+
+
+/* =========================================
+   YARDIMCI
+========================================= */
+
+function simulationOpenedWeeks() {
+
+  const now = Date.now();
+
+  const weeks = [
+    ...new Set(
+      allMatches.map(match =>
+        Number(match.week)
+      )
+    )
+  ]
+    .filter(week =>
+      Number.isInteger(week) && week > 0
+    )
+    .sort((a, b) => b - a);
+
+  return weeks.filter(week => {
+
+    const weekMatches =
+      allMatches.filter(match =>
+        Number(match.week) === week
+      );
+
+    const opening =
+      weekOpeningTime(weekMatches);
+
+    return (
+      opening !== null &&
+      now >= opening
+    );
+  });
+}
+
+
+/* =========================================
+   HAFTA SEÇİCİ
+========================================= */
+
+function renderSimulationWeekOptions() {
+
+  const select =
+    $("simulationWeekSelect");
+
+  if (!select) return;
+
+  const previous =
+    Number(select.value);
+
+  const weeks =
+    simulationOpenedWeeks();
+
+  select.innerHTML =
+    '<option value="">Hafta seç...</option>' +
+
+    weeks.map(week => `
+      <option value="${week}">
+        ${week}. Hafta
+      </option>
+    `).join("");
+
+  if (!weeks.length) return;
+
+  const selected =
+    weeks.includes(previous)
+      ? previous
+      : weeks[0];
+
+  select.value =
+    String(selected);
+
+  renderSimulationMatchOptions();
+}
+
+
+/* =========================================
+   MAÇ SEÇİCİ
+========================================= */
+
+function renderSimulationMatchOptions() {
+
+  const weekSelect =
+    $("simulationWeekSelect");
+
+  const matchSelect =
+    $("simulationMatchSelect");
+
+  if (!weekSelect || !matchSelect)
+    return;
+
+  const week =
+    Number(weekSelect.value);
+
+  if (!week) {
+
+    matchSelect.innerHTML =
+      '<option value="">Maç seç...</option>';
+
+    clearSimulation();
+
+    return;
+  }
+
+  const previous =
+    matchSelect.value;
+
+  const weekMatches =
+    allMatches
+      .filter(match =>
+        Number(match.week) === week
+      )
+      .sort((a, b) =>
+        new Date(a.kickoff_at) -
+        new Date(b.kickoff_at)
+      );
+
+  matchSelect.innerHTML =
+    '<option value="">Maç seç...</option>' +
+
+    weekMatches.map(match => {
+
+      const state =
+        matchState(match);
+
+      const tag =
+        state === "live"
+          ? "🔴 CANLI"
+          : state === "finished"
+            ? "✓ BİTTİ"
+            : "○ OYNANMADI";
+
+      const score =
+        hasMatchScore(match)
+          ? `${match.home_score}-${match.away_score}`
+          : "vs";
+
+      return `
+        <option value="${escapeHTML(match.id)}">
+          ${escapeHTML(tag)} ·
+          ${escapeHTML(match.home_team)}
+          ${escapeHTML(score)}
+          ${escapeHTML(match.away_team)}
+        </option>
+      `;
+
+    }).join("");
+
+  if (
+    weekMatches.some(match =>
+      String(match.id) ===
+      String(previous)
+    )
+  ) {
+
+    matchSelect.value =
+      previous;
+
+  } else {
+
+    matchSelect.value = "";
+
+  }
+
+  renderSimulationMatch();
+}
+
+
+/* =========================================
+   TEMİZLE
+========================================= */
+
+function clearSimulation() {
+
+  const card =
+    $("simulationMatchCard");
+
+  const result =
+    $("simulationResult");
+
+  if (card) {
+
+    card.innerHTML = "";
+    card.classList.add("hidden");
+
+  }
+
+  if (result) {
+
+    result.innerHTML =
+      "Bir maç seçerek simülasyonu başlat.";
+
+    result.className =
+      "card simulation-empty";
+
+  }
+}
+
+
+/* =========================================
+   SEÇİLEN MAÇ
+========================================= */
+
+function getSimulationMatch() {
+
+  const matchId =
+    $("simulationMatchSelect")?.value;
+
+  if (!matchId)
+    return null;
+
+  return allMatches.find(match =>
+    String(match.id) ===
+    String(matchId)
+  ) || null;
+}
+
+
+/* =========================================
+   MAÇ KARTI
+========================================= */
+
+function renderSimulationMatch() {
+
+  const match =
+    getSimulationMatch();
+
+  const card =
+    $("simulationMatchCard");
+
+  if (!card) return;
+
+  if (!match) {
+
+    clearSimulation();
+    return;
+
+  }
+
+  const home =
+    hasMatchScore(match)
+      ? Number(match.home_score)
+      : 0;
+
+  const away =
+    hasMatchScore(match)
+      ? Number(match.away_score)
+      : 0;
+
+  card.classList.remove("hidden");
+
+  card.innerHTML = `
+
+    <div class="simulation-match-header">
+
+      <div class="simulation-team">
+
+        ${teamBadge(
+          match.home_team_badge,
+          match.home_team
+        )}
+
+        <span class="simulation-team-name">
+          ${escapeHTML(match.home_team)}
+        </span>
+
+      </div>
+
+
+      <div class="simulation-score-box">
+
+        <div class="simulation-score-control">
+
+          <button
+            class="simulation-score-btn"
+            id="simulationHomePlus"
+            type="button">
+            +
+          </button>
+
+          <input
+            id="simulationHomeScore"
+            class="simulation-score-input"
+            type="number"
+            min="0"
+            max="30"
+            value="${home}"
+            inputmode="numeric">
+
+          <button
+            class="simulation-score-btn"
+            id="simulationHomeMinus"
+            type="button">
+            −
+          </button>
+
+        </div>
+
+
+        <span class="simulation-score-separator">
+          -
+        </span>
+
+
+        <div class="simulation-score-control">
+
+          <button
+            class="simulation-score-btn"
+            id="simulationAwayPlus"
+            type="button">
+            +
+          </button>
+
+          <input
+            id="simulationAwayScore"
+            class="simulation-score-input"
+            type="number"
+            min="0"
+            max="30"
+            value="${away}"
+            inputmode="numeric">
+
+          <button
+            class="simulation-score-btn"
+            id="simulationAwayMinus"
+            type="button">
+            −
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="simulation-team">
+
+        ${teamBadge(
+          match.away_team_badge,
+          match.away_team
+        )}
+
+        <span class="simulation-team-name">
+          ${escapeHTML(match.away_team)}
+        </span>
+
+      </div>
+
+    </div>
+
+
+    <div class="simulation-current">
+
+      ${
+        hasMatchScore(match)
+
+          ? `Mevcut skor:
+             ${escapeHTML(match.home_score)}
+             -
+             ${escapeHTML(match.away_score)}`
+
+          : "Maç henüz başlamadı"
+      }
+
+    </div>
+
+  `;
+
+
+  function changeScore(
+    inputId,
+    difference
+  ) {
+
+    const input =
+      $(inputId);
+
+    if (!input) return;
+
+    let value =
+      Number(input.value || 0);
+
+    value += difference;
+
+    value =
+      Math.max(
+        0,
+        Math.min(30, value)
+      );
+
+    input.value =
+      String(value);
+
+    runSimulation();
+
+  }
+
+
+  $("simulationHomePlus")
+    ?.addEventListener(
+      "click",
+      () =>
+        changeScore(
+          "simulationHomeScore",
+          1
+        )
+    );
+
+
+  $("simulationHomeMinus")
+    ?.addEventListener(
+      "click",
+      () =>
+        changeScore(
+          "simulationHomeScore",
+          -1
+        )
+    );
+
+
+  $("simulationAwayPlus")
+    ?.addEventListener(
+      "click",
+      () =>
+        changeScore(
+          "simulationAwayScore",
+          1
+        )
+    );
+
+
+  $("simulationAwayMinus")
+    ?.addEventListener(
+      "click",
+      () =>
+        changeScore(
+          "simulationAwayScore",
+          -1
+        )
+    );
+
+
+  $("simulationHomeScore")
+    ?.addEventListener(
+      "input",
+      runSimulation
+    );
+
+
+  $("simulationAwayScore")
+    ?.addEventListener(
+      "input",
+      runSimulation
+    );
+
+
+  runSimulation();
+}
+
+
+/* =========================================
+   PUAN SİMÜLASYONU
+========================================= */
+
+let simulationRequest = 0;
+
+
+async function runSimulation() {
+
+  const request =
+    ++simulationRequest;
+
+  const match =
+    getSimulationMatch();
+
+  const container =
+    $("simulationResult");
+
+  if (!match || !container)
+    return;
+
+
+  const home =
+    Number(
+      $("simulationHomeScore")?.value
+    );
+
+  const away =
+    Number(
+      $("simulationAwayScore")?.value
+    );
+
+
+  if (
+    !Number.isInteger(home) ||
+    !Number.isInteger(away) ||
+    home < 0 ||
+    away < 0 ||
+    home > 30 ||
+    away > 30
+  ) {
+
+    container.innerHTML =
+      "Geçerli bir skor gir.";
+
+    return;
+  }
+
+
+  const token =
+    sessionToken();
+
+
+  if (
+    !token ||
+    !currentPlayer
+  ) {
+
+    handleSessionError({
+      message: "Oturum gecersiz"
+    });
+
+    return;
+  }
+
+
+  container.className =
+    "card simulation-empty";
+
+  container.innerHTML =
+    "Simülasyon hesaplanıyor...";
+
+
+  try {
+
+    /*
+     * Sadece tahminleri OKUYORUZ.
+     * Supabase'e hiçbir veri yazılmıyor.
+     */
+
+    const response =
+      await supabaseClient.rpc(
+        "get_my_week_predictions",
+        {
+          p_token: token,
+          p_week: Number(match.week)
+        }
+      );
+
+
+    if (
+      request !== simulationRequest
+    )
+      return;
+
+
+    if (response.error)
+      throw response.error;
+
+
+    const predictions =
+      (response.data || []).filter(
+        row =>
+          String(row.match_id) ===
+            String(match.id) &&
+          validPrediction(row)
+      );
+
+
+    if (!predictions.length) {
+
+      container.innerHTML =
+        "Bu maç için görüntülenebilir tahmin bulunamadı.";
+
+      return;
+    }
+
+
+    /*
+     * GERÇEK maç nesnesine dokunmuyoruz.
+     *
+     * Simülasyon amaçlı kopya.
+     */
+
+    const simulatedMatch = {
+      ...match,
+
+      home_score: home,
+      away_score: away
+    };
+
+
+    /*
+     * Mevcut uygulamadaki
+     * 150 / 100 / 50 motorunu
+     * AYNEN kullanıyoruz.
+     */
+
+    const calculated =
+      calculateLivePoints(
+        simulatedMatch,
+        predictions
+      );
+
+
+    const predictionMap =
+      new Map(
+        predictions.map(row => [
+          String(row.player_id),
+          row
+        ])
+      );
+
+
+    const ranking =
+      players.map(player => {
+
+        const prediction =
+          predictionMap.get(
+            String(player.id)
+          );
+
+        const points =
+          calculated.get(
+            `${match.id}:${player.id}`
+          ) || emptyPoints();
+
+
+        return {
+
+          id:
+            player.id,
+
+          name:
+            player.name,
+
+          prediction:
+            validPrediction(prediction)
+              ? `${prediction.home_prediction}-${prediction.away_prediction}`
+              : "—",
+
+          scorePoints:
+            Number(
+              points.scorePoints || 0
+            ),
+
+          sidePoints:
+            Number(
+              points.sidePoints || 0
+            ),
+
+          overUnderPoints:
+            Number(
+              points.overUnderPoints || 0
+            ),
+
+          totalPoints:
+            Number(
+              points.totalPoints || 0
+            )
+
+        };
+
+      })
+      .sort((a, b) =>
+
+        b.totalPoints -
+          a.totalPoints ||
+
+        b.scorePoints -
+          a.scorePoints ||
+
+        a.name.localeCompare(
+          b.name,
+          "tr"
+        )
+
+      );
+
+
+    const highest =
+      Math.max(
+        0,
+        ...ranking.map(
+          row => row.totalPoints
+        )
+      );
+
+
+    const exactDistributed =
+      ranking.reduce(
+        (sum, row) =>
+          sum + row.scorePoints,
+        0
+      );
+
+
+    const sideDistributed =
+      ranking.reduce(
+        (sum, row) =>
+          sum + row.sidePoints,
+        0
+      );
+
+
+    const ouDistributed =
+      ranking.reduce(
+        (sum, row) =>
+          sum + row.overUnderPoints,
+        0
+      );
+
+
+    container.className =
+      "card";
+
+
+    container.innerHTML = `
+
+      <div class="simulation-result-title">
+
+        <strong>
+          ${escapeHTML(match.home_team)}
+          ${home}-${away}
+          ${escapeHTML(match.away_team)}
+        </strong>
+
+        <div class="feature-note">
+          Simüle edilen maç puanları
+        </div>
+
+      </div>
+
+
+      <div class="simulation-ranking">
+
+        ${ranking.map(row => {
+
+          const leader =
+            highest > 0 &&
+            row.totalPoints === highest;
+
+          const me =
+            String(row.id) ===
+            String(currentPlayer);
+
+          return `
+
+            <div class="
+              simulation-player
+              ${leader ? "leader" : ""}
+              ${me ? "me" : ""}
+            ">
+
+              <span class="simulation-player-name">
+
+                ${leader ? "🏆 " : ""}
+
+                ${escapeHTML(row.name)}
+
+                <small
+                  style="
+                    display:block;
+                    margin-top:4px;
+                    color:var(--muted);
+                    font-weight:500;
+                  ">
+
+                  Tahmin:
+                  ${escapeHTML(row.prediction)}
+
+                </small>
+
+              </span>
+
+
+              <span class="simulation-player-points">
+
+                ${numberTR(
+                  row.totalPoints
+                )}
+
+              </span>
+
+            </div>
+
+          `;
+
+        }).join("")}
+
+      </div>
+
+
+      <div class="simulation-pools">
+
+        <div class="simulation-pool">
+
+          <small>
+            🎯 Tam Skor
+          </small>
+
+          <strong>
+            ${numberTR(
+              exactDistributed
+            )} / 150
+          </strong>
+
+        </div>
+
+
+        <div class="simulation-pool">
+
+          <small>
+            ✅ Taraf
+          </small>
+
+          <strong>
+            ${numberTR(
+              sideDistributed
+            )} / 100
+          </strong>
+
+        </div>
+
+
+        <div class="simulation-pool">
+
+          <small>
+            ⚽ Alt / Üst
+          </small>
+
+          <strong>
+            ${numberTR(
+              ouDistributed
+            )} / 50
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <div class="simulation-warning">
+
+        🔮 Simülasyon
+
+        <br>
+
+        Skor yalnızca tarayıcıda hesaplandı.
+        Gerçek maç skoru, match_points ve
+        oyuncu puanları değiştirilmedi.
+
+      </div>
+
+    `;
+
+
+  } catch (error) {
+
+    if (
+      request !== simulationRequest
+    )
+      return;
+
+
+    console.error(
+      "Simülasyon hatası:",
+      error
+    );
+
+
+    if (
+      handleSessionError(error)
+    )
+      return;
+
+
+    container.className =
+      "card simulation-empty";
+
+    container.innerHTML =
+      `Simülasyon hesaplanamadı: ${
+        escapeHTML(
+          error.message || ""
+        )
+      }`;
+
+  }
+}
+
+
+/* =========================================
+   OLAYLAR
+========================================= */
+
+$("simulationWeekSelect")
+  ?.addEventListener(
+    "change",
+    renderSimulationMatchOptions
+  );
+
+
+$("simulationMatchSelect")
+  ?.addEventListener(
+    "change",
+    renderSimulationMatch
+  );
+
+
+/*
+ * Simülasyon sekmesi açıldığında
+ * mevcut maçlardan hafta listesini oluştur.
+ */
+
+const simulationTab =
+  document.querySelector(
+    '.tab[data-tab="simulation"]'
+  );
+
+
+simulationTab
+  ?.addEventListener(
+    "click",
+    () => {
+
+      renderSimulationWeekOptions();
+
+    }
+  );
