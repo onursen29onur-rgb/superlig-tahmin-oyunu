@@ -9,7 +9,7 @@
     content="width=device-width,initial-scale=1,viewport-fit=cover"
   >
 
-  <meta name="theme-color" content="#a51e22">
+  <meta name="theme-color" content="#071127">
 
   <title>Süper Lig Tahmin Oyunu</title>
 
@@ -18,6 +18,7 @@
   <style>
     /* =========================================
        GALATASARAY ÜST BANNER
+       Logo yok, sadece yazı
     ========================================= */
 
     .galatasaray-banner {
@@ -27,17 +28,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 16px;
 
       min-height: 92px;
-      padding:
-        12px
-        max(16px, env(safe-area-inset-left));
+      padding: 12px 16px;
 
       overflow: hidden;
 
-      border-bottom:
-        3px solid #fdb912;
+      border-bottom: 3px solid #fdb912;
 
       background:
         linear-gradient(
@@ -54,7 +51,6 @@
 
     .galatasaray-banner::before {
       content: "";
-
       position: absolute;
       inset: 0;
 
@@ -73,21 +69,6 @@
       pointer-events: none;
     }
 
-    .galatasaray-logo {
-      position: relative;
-      z-index: 1;
-
-      width: 66px;
-      height: 66px;
-
-      object-fit: contain;
-
-      filter:
-        drop-shadow(
-          0 6px 10px rgba(0, 0, 0, .35)
-        );
-    }
-
     .galatasaray-banner-text {
       position: relative;
       z-index: 1;
@@ -96,13 +77,13 @@
 
       color: #ffffff;
 
-      font-size:
-        clamp(22px, 5vw, 42px);
+      font-size: clamp(22px, 5vw, 42px);
 
-      font-weight: 1000;
+      font-weight: 900;
       line-height: 1;
-      letter-spacing: .06em;
+      letter-spacing: .05em;
       text-align: center;
+
       text-shadow:
         0 3px 0 rgba(92, 0, 20, .7),
         0 8px 18px rgba(0, 0, 0, .35);
@@ -134,9 +115,9 @@
     }
 
     .login-card .pin-input::placeholder {
+      letter-spacing: normal;
       color: var(--muted);
       font-size: 14px;
-      letter-spacing: normal;
     }
 
     .login-card .pin-input:focus {
@@ -145,14 +126,12 @@
     }
 
     /* =========================================
-       SİMÜLASYON PANELİ
+       SİMÜLASYON
     ========================================= */
 
     .simulation-filter {
       display: grid;
-      grid-template-columns:
-        repeat(2, minmax(0, 1fr));
-
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
       padding: 16px;
       margin-bottom: 16px;
@@ -165,7 +144,6 @@
     .simulation-field label {
       display: block;
       margin: 0 0 7px;
-
       color: var(--muted);
       font-size: 12px;
       font-weight: 800;
@@ -186,13 +164,10 @@
       margin: 0 0 16px;
       padding: 12px 14px;
 
-      border:
-        1px solid rgba(37, 194, 129, .28);
-
+      border: 1px solid rgba(37, 194, 129, .28);
       border-radius: 12px;
 
-      background:
-        rgba(37, 194, 129, .08);
+      background: rgba(37, 194, 129, .08);
 
       color: var(--muted);
 
@@ -207,18 +182,11 @@
     @media (max-width: 650px) {
       .galatasaray-banner {
         min-height: 78px;
-        gap: 10px;
         padding: 9px 12px;
       }
 
-      .galatasaray-logo {
-        width: 54px;
-        height: 54px;
-      }
-
       .galatasaray-banner-text {
-        font-size:
-          clamp(18px, 6vw, 28px);
+        font-size: clamp(20px, 6vw, 30px);
       }
 
       .simulation-filter {
@@ -239,41 +207,27 @@
 
   <!-- =====================================
        GALATASARAY ÜST BANDI
+       LOGO KALDIRILDI
   ====================================== -->
 
   <div class="galatasaray-banner">
-
-    <img
-      class="galatasaray-logo"
-      src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Galatasaray_SK.svg/1200px-Galatasaray_SK.svg.png"
-      alt="Galatasaray logosu"
-      loading="eager"
-      decoding="async"
-    >
-
     <h1 class="galatasaray-banner-text">
       BABANIZ <span>GALATASARAY</span>
     </h1>
-
   </div>
 
   <div class="app-shell">
 
-    <!-- =====================================
-         ÜST MENÜ
-    ====================================== -->
-
+    <!-- ÜST MENÜ -->
     <header class="topbar">
 
       <div class="brand">
-
         <span class="ball">⚽</span>
 
         <div>
           <strong>Süper Lig Tahmin</strong>
           <small>2026/27 Sezonu</small>
         </div>
-
       </div>
 
       <div class="top-actions">
@@ -298,10 +252,7 @@
 
     <main class="container">
 
-      <!-- =====================================
-           OYUNCU GİRİŞİ
-      ====================================== -->
-
+      <!-- OYUNCU GİRİŞİ -->
       <section
         id="loginCard"
         class="card login-card">
@@ -356,11 +307,10 @@
 
       </section>
 
-      <!-- =====================================
-           OYUN ALANI
-      ====================================== -->
-
-      <section id="gameArea" class="hidden">
+      <!-- OYUN ALANI -->
+      <section
+        id="gameArea"
+        class="hidden">
 
         <div class="welcome-row">
 
@@ -392,10 +342,7 @@
 
         </div>
 
-        <!-- =====================================
-             7 ANA SEKME
-        ====================================== -->
-
+        <!-- ANA SEKME MENÜSÜ -->
         <nav
           class="tabs"
           aria-label="Uygulama bölümleri">
@@ -451,10 +398,7 @@
 
         </nav>
 
-        <!-- =====================================
-             TAHMİNLER PANELİ
-        ====================================== -->
-
+        <!-- TAHMİNLER -->
         <section
           id="predictionsPanel"
           class="tab-panel">
@@ -462,16 +406,13 @@
           <div class="section-head">
 
             <div>
-
               <h2 id="matchesTitle">
                 Haftanın Maçları
               </h2>
 
               <p>
-                Skorlarını tek tek veya toplu
-                olarak kaydet.
+                Skorlarını tek tek veya toplu olarak kaydet.
               </p>
-
             </div>
 
             <button
@@ -490,10 +431,7 @@
 
         </section>
 
-        <!-- =====================================
-             FİKSTÜR PANELİ
-        ====================================== -->
-
+        <!-- FİKSTÜR -->
         <section
           id="fixturePanel"
           class="tab-panel hidden">
@@ -501,7 +439,6 @@
           <div class="section-head">
 
             <div>
-
               <h2>📅 Fikstür</h2>
 
               <p>
@@ -509,7 +446,6 @@
                 programını veya sonuçlarını görüntüle.
                 Bu ekran tahmin kilidinden etkilenmez.
               </p>
-
             </div>
 
           </div>
@@ -531,10 +467,7 @@
 
         </section>
 
-        <!-- =====================================
-             GENEL KLASMAN PANELİ
-        ====================================== -->
-
+        <!-- GENEL KLASMAN -->
         <section
           id="leaderboardPanel"
           class="tab-panel hidden">
@@ -542,14 +475,12 @@
           <div class="section-head">
 
             <div>
-
               <h2>🏆 Genel Klasman</h2>
 
               <p>
                 Sezon başlangıcından itibaren
                 kazanılan toplam puanlar.
               </p>
-
             </div>
 
             <button
@@ -571,14 +502,12 @@
             <table>
 
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
                   <th>Puan</th>
                   <th>Lidere Fark</th>
                 </tr>
-
               </thead>
 
               <tbody id="leaderBody"></tbody>
@@ -589,10 +518,7 @@
 
         </section>
 
-        <!-- =====================================
-             DÖNEMLER PANELİ
-        ====================================== -->
-
+        <!-- DÖNEMLER -->
         <section
           id="periodsPanel"
           class="tab-panel hidden">
@@ -606,8 +532,7 @@
               </h2>
 
               <p id="activePeriodDescription">
-                Aktif dört haftalık dönemin
-                canlı sıralaması.
+                Aktif dört haftalık dönemin canlı sıralaması.
               </p>
 
             </div>
@@ -624,14 +549,12 @@
             <table>
 
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
                   <th>Dönem Puanı</th>
                   <th>Lidere Fark</th>
                 </tr>
-
               </thead>
 
               <tbody id="periodBody"></tbody>
@@ -643,14 +566,12 @@
           <div class="section-head">
 
             <div>
-
               <h2>🥇 Dönem Kürsüleri</h2>
 
               <p>
                 Her dört haftalık dönemin
                 ilk üç oyuncusu.
               </p>
-
             </div>
 
           </div>
@@ -662,10 +583,7 @@
 
         </section>
 
-        <!-- =====================================
-             MADALYALAR PANELİ
-        ====================================== -->
-
+        <!-- MADALYALAR -->
         <section
           id="medalsPanel"
           class="tab-panel hidden">
@@ -673,14 +591,12 @@
           <div class="section-head">
 
             <div>
-
               <h2>🏅 Madalya Tablosu</h2>
 
               <p>
                 Yalnızca tamamlanan dönemlerin
                 ilk üç dereceleri sayılır.
               </p>
-
             </div>
 
           </div>
@@ -690,7 +606,6 @@
             <table>
 
               <thead>
-
                 <tr>
                   <th>#</th>
                   <th>Oyuncu</th>
@@ -699,7 +614,6 @@
                   <th>🥉</th>
                   <th>Toplam</th>
                 </tr>
-
               </thead>
 
               <tbody id="medalBody"></tbody>
@@ -710,10 +624,7 @@
 
         </section>
 
-        <!-- =====================================
-             MAÇ PUANLARI PANELİ
-        ====================================== -->
-
+        <!-- MAÇ PUANLARI -->
         <section
           id="matchPointsPanel"
           class="tab-panel hidden">
@@ -721,15 +632,13 @@
           <div class="section-head">
 
             <div>
-
               <h2>🎯 Maç Puanları</h2>
 
               <p>
                 Canlı ve biten maçlarda oyuncuların
-                tahminlerini, puan kırılımlarını ve
-                maç performanslarını görüntüle.
+                tahminlerini, puan kırılımlarını
+                ve maç performanslarını görüntüle.
               </p>
-
             </div>
 
             <button
@@ -789,12 +698,10 @@
               <tbody id="matchPointsBody">
 
                 <tr>
-
                   <td colspan="7">
                     Puan detaylarını görmek için
                     canlı veya tamamlanan bir maç seçiniz.
                   </td>
-
                 </tr>
 
               </tbody>
@@ -805,10 +712,7 @@
 
         </section>
 
-        <!-- =====================================
-             SİMÜLASYON PANELİ
-        ====================================== -->
-
+        <!-- SİMÜLASYON -->
         <section
           id="simulationPanel"
           class="tab-panel hidden">
@@ -821,7 +725,8 @@
 
               <p>
                 Olası maç skorunun 150 / 100 / 50
-                havuz puanlarına etkisini görüntüle.
+                havuz puanlarına ve dönem sıralamasına
+                etkisini görüntüle.
               </p>
 
             </div>
@@ -830,11 +735,13 @@
 
           <div class="simulation-safety-note">
 
-            <strong>Güvenli simülasyon:</strong>
+            <strong>
+              Güvenli simülasyon:
+            </strong>
 
-            Bu ekran yalnızca tahminleri okur.
-            Gerçek maç skoru, maç puanları ve
-            genel klasman değiştirilmez.
+            Bu ekran yalnızca verileri okur.
+            Gerçek maç skoru, maç puanları,
+            dönem puanları ve genel klasman değiştirilmez.
 
           </div>
 
