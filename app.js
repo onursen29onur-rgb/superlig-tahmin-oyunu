@@ -3489,40 +3489,54 @@ renderSelectedMatchResult = function(match) {
 if ($("fixtureWeekSelect")?.value) {
   renderFixtureList(Number($("fixtureWeekSelect").value));
 }
-setupSimulation();
+/* =========================================
+   SİMÜLASYON SEKME TESTİ
+========================================= */
 
-/* Simülasyon sekmesini garanti olarak görünür ve çalışır hale getir */
-const simulationTabButton = document.querySelector(
-  '.tab[data-tab="simulation"]'
-);
+(function createSimulationTab() {
+  const tabs = document.querySelector(".tabs");
+  const gameArea = document.getElementById("gameArea");
 
-if (simulationTabButton) {
-  simulationTabButton.style.display = "";
+  if (!tabs || !gameArea) return;
 
-  simulationTabButton.onclick = async function(event) {
-    event.preventDefault();
+  if (document.getElementById("simulationPanel")) return;
 
+  const button = document.createElement("button");
+  button.className = "tab";
+  button.type = "button";
+  button.dataset.tab = "simulation";
+  button.textContent = "🔮 Simülasyon";
+
+  const panel = document.createElement("section");
+  panel.id = "simulationPanel";
+  panel.className = "tab-panel hidden";
+
+  panel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <h2>🔮 Skor Simülasyonu</h2>
+        <p>Olası maç sonuçlarının havuz puanlarına etkisini simüle et.</p>
+      </div>
+    </div>
+
+    <div class="card feature-message">
+      ✅ Simülasyon ekranı hazır.
+    </div>
+  `;
+
+  tabs.appendChild(button);
+  gameArea.appendChild(panel);
+
+  button.addEventListener("click", function() {
     document.querySelectorAll(".tab").forEach(tab => {
       tab.classList.remove("active");
     });
 
-    document.querySelectorAll(".tab-panel").forEach(panel => {
-      panel.classList.add("hidden");
+    document.querySelectorAll(".tab-panel").forEach(tabPanel => {
+      tabPanel.classList.add("hidden");
     });
 
-    simulationTabButton.classList.add("active");
-
-    const panel = $("simulationPanel");
-
-    if (panel) {
-      panel.classList.remove("hidden");
-    }
-
-    try {
-      await loadMatches();
-      renderSimulationOptions();
-    } catch (error) {
-      toast(error.message || "Simülasyon açılamadı");
-    }
-  };
-}
+    button.classList.add("active");
+    panel.classList.remove("hidden");
+  });
+})();
