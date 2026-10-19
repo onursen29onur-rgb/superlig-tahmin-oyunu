@@ -158,7 +158,7 @@
           </button>
         </div>
 
-        <!-- 6 ANA SEKME -->
+        <!-- 7 ANA SEKME -->
         <nav
           class="tabs"
           aria-label="Uygulama bölümleri">
@@ -204,6 +204,15 @@
             type="button">
             🎯 Maç Puanları
           </button>
+
+          <!-- YENİ: SİMÜLASYON SEKME BUTONU -->
+          <button
+            class="tab"
+            data-tab="simulation"
+            type="button">
+            🔮 Simülasyon
+          </button>
+
         </nav>
 
         <!-- TAHMİNLER PANELİ -->
@@ -302,7 +311,6 @@
           id="periodsPanel"
           class="tab-panel hidden">
 
-          <!-- AKTİF DÖNEM -->
           <div class="section-head">
             <div>
               <h2 id="activePeriodTitle">⚡ Aktif Dönem</h2>
@@ -330,7 +338,6 @@
             </table>
           </div>
 
-          <!-- TÜM DÖNEM KÜRSÜLERİ -->
           <div class="section-head">
             <div>
               <h2>🥇 Dönem Kürsüleri</h2>
@@ -443,6 +450,30 @@
               </tbody>
             </table>
           </div>
+        </section>
+
+        <!-- ====================================
+             YENİ: SİMÜLASYON PANELİ
+        ===================================== -->
+        <section
+          id="simulationPanel"
+          class="tab-panel hidden">
+
+          <div class="section-head">
+            <div>
+              <h2>🔮 Skor Simülasyonu</h2>
+
+              <p>
+                Olası maç sonuçlarının havuz puanlarına
+                etkisini simüle et.
+              </p>
+            </div>
+          </div>
+
+          <div class="card feature-message">
+            ✅ Simülasyon ekranı hazır.
+          </div>
+
         </section>
 
       </section>
