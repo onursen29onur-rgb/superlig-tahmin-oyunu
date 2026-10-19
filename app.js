@@ -7631,7 +7631,7 @@ async function runScoreSimulation() {
   } finally {
     button.disabled = false;
   }
-
+}
 setupSimulation();
 
 /* Simülasyon sekmesini garanti olarak görünür ve çalışır hale getir */
