@@ -4724,3 +4724,564 @@ simulationTab
 
     }
   );
+/* =========================================
+   🔮 SİMÜLASYON + DÖNEM KLASMANI
+   Seçilen maçın simülasyon puanını dönem
+   toplamına ekler.
+
+   Supabase'e veri YAZMAZ.
+========================================= */
+
+runSimulation = async function() {
+  const request = ++simulationRequest;
+
+  const match = getSimulationMatch();
+  const container = $("simulationResult");
+
+  if (!match || !container) return;
+
+  const home = Number(
+    $("simulationHomeScore")?.value
+  );
+
+  const away = Number(
+    $("simulationAwayScore")?.value
+  );
+
+  if (
+    !Number.isInteger(home) ||
+    !Number.isInteger(away) ||
+    home < 0 ||
+    away < 0 ||
+    home > 30 ||
+    away > 30
+  ) {
+    container.className = "card simulation-empty";
+    container.innerHTML = "Geçerli bir skor gir.";
+    return;
+  }
+
+  const token = sessionToken();
+
+  if (!token || !currentPlayer) {
+    handleSessionError({
+      message: "Oturum gecersiz"
+    });
+
+    return;
+  }
+
+  container.className = "card simulation-empty";
+  container.innerHTML = "Simülasyon hesaplanıyor...";
+
+  try {
+    /*
+     * Seçilen maçın bulunduğu dört haftalık dönem.
+     *
+     * Örnek:
+     * 1-4   → Dönem 1
+     * 5-8   → Dönem 2
+     * 9-12  → Dönem 3
+     */
+
+    const periodNo =
+      Math.floor((Number(match.week) - 1) / 4) + 1;
+
+    const startWeek =
+      periodStart(periodNo);
+
+    const endWeek =
+      periodEnd(periodNo);
+
+    /*
+     * Seçilen dönemdeki bütün gerçek maçlar.
+     */
+
+    const periodMatches = allMatches.filter(row =>
+      Number(row.week) >= startWeek &&
+      Number(row.week) <= endWeek &&
+      row.home_team !== "HISTORICAL"
+    );
+
+    const periodMatchIds = periodMatches.map(row =>
+      row.id
+    );
+
+    /*
+     * İki veri okunur:
+     *
+     * 1. Seçilen haftanın tahminleri
+     * 2. Dönemde daha önce oluşmuş maç puanları
+     *
+     * INSERT / UPDATE / DELETE yapılmaz.
+     */
+
+    const [
+      predictionResponse,
+      periodPointResponse
+    ] = await Promise.all([
+      supabaseClient.rpc(
+        "get_my_week_predictions",
+        {
+          p_token: token,
+          p_week: Number(match.week)
+        }
+      ),
+
+      periodMatchIds.length
+        ? supabaseClient
+            .from("match_points")
+            .select(
+              "player_id,match_id,point_type,points"
+            )
+            .in("match_id", periodMatchIds)
+        : Promise.resolve({
+            data: [],
+            error: null
+          })
+    ]);
+
+    if (request !== simulationRequest) return;
+
+    if (predictionResponse.error) {
+      throw predictionResponse.error;
+    }
+
+    if (periodPointResponse.error) {
+      throw periodPointResponse.error;
+    }
+
+    /*
+     * Yalnızca seçilen maça ait geçerli tahminler.
+     */
+
+    const predictions =
+      (predictionResponse.data || []).filter(row =>
+        String(row.match_id) === String(match.id) &&
+        validPrediction(row)
+      );
+
+    if (!predictions.length) {
+      container.className = "card simulation-empty";
+
+      container.innerHTML =
+        "Bu maç için görüntülenebilir tahmin bulunamadı.";
+
+      return;
+    }
+
+    /*
+     * Gerçek maç kaydına dokunulmaz.
+     * Skoru değiştirilmiş geçici bir nesne oluşturulur.
+     */
+
+    const simulatedMatch = {
+      ...match,
+      home_score: home,
+      away_score: away
+    };
+
+    /*
+     * Mevcut 150 / 100 / 50 havuz motoru.
+     */
+
+    const calculated = calculateLivePoints(
+      simulatedMatch,
+      predictions
+    );
+
+    const predictionMap = new Map(
+      predictions.map(row => [
+        String(row.player_id),
+        row
+      ])
+    );
+
+    /*
+     * Seçilen maç bazlı simülasyon sıralaması.
+     */
+
+    const matchRanking = players.map(player => {
+      const prediction = predictionMap.get(
+        String(player.id)
+      );
+
+      const points =
+        calculated.get(
+          `${match.id}:${player.id}`
+        ) || emptyPoints();
+
+      return {
+        id: player.id,
+        name: player.name,
+
+        prediction:
+          validPrediction(prediction)
+            ? `${prediction.home_prediction}-${prediction.away_prediction}`
+            : "—",
+
+        scorePoints:
+          Number(points.scorePoints || 0),
+
+        sidePoints:
+          Number(points.sidePoints || 0),
+
+        overUnderPoints:
+          Number(points.overUnderPoints || 0),
+
+        totalPoints:
+          Number(points.totalPoints || 0)
+      };
+    }).sort((a, b) =>
+      b.totalPoints - a.totalPoints ||
+      b.scorePoints - a.scorePoints ||
+      a.name.localeCompare(b.name, "tr")
+    );
+
+    /*
+     * Dönemin mevcut puanları hesaplanır.
+     *
+     * Kritik kural:
+     * Seçilen maçın match_points kayıtları
+     * dönem taban puanına dahil edilmez.
+     *
+     * Böylece canlı veya bitmiş maçın mevcut puanı
+     * ile simülasyon puanı iki kez sayılmaz.
+     */
+
+    const basePeriodPoints = new Map(
+      players.map(player => [
+        String(player.id),
+        0
+      ])
+    );
+
+    for (const row of periodPointResponse.data || []) {
+      if (
+        String(row.match_id) === String(match.id)
+      ) {
+        continue;
+      }
+
+      const playerId =
+        String(row.player_id);
+
+      const current =
+        Number(basePeriodPoints.get(playerId) || 0);
+
+      const amount =
+        Number(row.points || 0);
+
+      basePeriodPoints.set(
+        playerId,
+        Math.round(
+          (current + amount) * 100
+        ) / 100
+      );
+    }
+
+    /*
+     * Dönem taban puanı + seçilen maçın
+     * simülasyon puanı.
+     */
+
+    const periodRanking = players.map(player => {
+      const playerId =
+        String(player.id);
+
+      const basePoints =
+        Number(
+          basePeriodPoints.get(playerId) || 0
+        );
+
+      const simulatedMatchPoints =
+        Number(
+          calculated.get(
+            `${match.id}:${player.id}`
+          )?.totalPoints || 0
+        );
+
+      const simulatedPeriodPoints =
+        Math.round(
+          (
+            basePoints +
+            simulatedMatchPoints
+          ) * 100
+        ) / 100;
+
+      return {
+        id: player.id,
+        name: player.name,
+        basePoints,
+        simulatedMatchPoints,
+        totalPoints: simulatedPeriodPoints
+      };
+    }).sort((a, b) =>
+      b.totalPoints - a.totalPoints ||
+      b.simulatedMatchPoints - a.simulatedMatchPoints ||
+      a.name.localeCompare(b.name, "tr")
+    );
+
+    const highestMatchPoints = Math.max(
+      0,
+      ...matchRanking.map(row =>
+        row.totalPoints
+      )
+    );
+
+    const highestPeriodPoints = Math.max(
+      0,
+      ...periodRanking.map(row =>
+        row.totalPoints
+      )
+    );
+
+    const exactDistributed =
+      matchRanking.reduce(
+        (sum, row) =>
+          sum + row.scorePoints,
+        0
+      );
+
+    const sideDistributed =
+      matchRanking.reduce(
+        (sum, row) =>
+          sum + row.sidePoints,
+        0
+      );
+
+    const overUnderDistributed =
+      matchRanking.reduce(
+        (sum, row) =>
+          sum + row.overUnderPoints,
+        0
+      );
+
+    container.className = "card";
+
+    container.innerHTML = `
+      <div class="simulation-result-title">
+
+        <strong>
+          ${escapeHTML(match.home_team)}
+          ${home}-${away}
+          ${escapeHTML(match.away_team)}
+        </strong>
+
+        <div class="feature-note">
+          Simüle edilen maç puanları
+        </div>
+
+      </div>
+
+      <!-- MAÇ PUANLARI -->
+
+      <div class="simulation-ranking">
+
+        ${matchRanking.map(row => {
+          const leader =
+            highestMatchPoints > 0 &&
+            row.totalPoints === highestMatchPoints;
+
+          const me =
+            String(row.id) ===
+            String(currentPlayer);
+
+          return `
+            <div class="
+              simulation-player
+              ${leader ? "leader" : ""}
+              ${me ? "me" : ""}
+            ">
+
+              <span class="simulation-player-name">
+
+                ${leader ? "🏆 " : ""}
+
+                ${escapeHTML(row.name)}
+
+                <small
+                  style="
+                    display:block;
+                    margin-top:4px;
+                    color:var(--muted);
+                    font-weight:500;
+                  ">
+
+                  Tahmin:
+                  ${escapeHTML(row.prediction)}
+
+                </small>
+
+              </span>
+
+              <span class="simulation-player-points">
+                ${numberTR(row.totalPoints)}
+              </span>
+
+            </div>
+          `;
+        }).join("")}
+
+      </div>
+
+      <!-- HAVUZ DAĞILIMI -->
+
+      <div class="simulation-pools">
+
+        <div class="simulation-pool">
+
+          <small>🎯 Tam Skor</small>
+
+          <strong>
+            ${numberTR(exactDistributed)} / 150
+          </strong>
+
+        </div>
+
+        <div class="simulation-pool">
+
+          <small>✅ Taraf</small>
+
+          <strong>
+            ${numberTR(sideDistributed)} / 100
+          </strong>
+
+        </div>
+
+        <div class="simulation-pool">
+
+          <small>⚽ Alt / Üst</small>
+
+          <strong>
+            ${numberTR(overUnderDistributed)} / 50
+          </strong>
+
+        </div>
+
+      </div>
+
+      <!-- DÖNEM PUAN TABLOSU -->
+
+      <div
+        style="
+          height:1px;
+          margin:26px 0 22px;
+          background:var(--line);
+        ">
+      </div>
+
+      <div class="simulation-result-title">
+
+        <strong>
+          🥇 Dönem ${periodNo} Simülasyonu
+        </strong>
+
+        <div class="feature-note">
+          Hafta ${startWeek}-${endWeek} ·
+          Seçilen maç simülasyon puanıyla hesaplandı
+        </div>
+
+      </div>
+
+      <div class="simulation-ranking">
+
+        ${periodRanking.map((row, index) => {
+          const leader =
+            highestPeriodPoints > 0 &&
+            row.totalPoints === highestPeriodPoints;
+
+          const me =
+            String(row.id) ===
+            String(currentPlayer);
+
+          const movementText =
+            row.simulatedMatchPoints > 0
+              ? `+${numberTR(row.simulatedMatchPoints)} maç puanı`
+              : "Bu maçtan 0 puan";
+
+          return `
+            <div class="
+              simulation-player
+              ${leader ? "leader" : ""}
+              ${me ? "me" : ""}
+            ">
+
+              <span class="simulation-player-name">
+
+                ${
+                  index === 0
+                    ? "🥇 "
+                    : index === 1
+                      ? "🥈 "
+                      : index === 2
+                        ? "🥉 "
+                        : `${index + 1}. `
+                }
+
+                ${escapeHTML(row.name)}
+
+                <small
+                  style="
+                    display:block;
+                    margin-top:4px;
+                    color:var(--muted);
+                    font-weight:500;
+                  ">
+
+                  Önce:
+                  ${numberTR(row.basePoints)}
+                  ·
+                  ${escapeHTML(movementText)}
+
+                </small>
+
+              </span>
+
+              <span class="simulation-player-points">
+                ${numberTR(row.totalPoints)}
+              </span>
+
+            </div>
+          `;
+        }).join("")}
+
+      </div>
+
+      <div class="simulation-warning">
+
+        🔮 Simülasyon
+
+        <br>
+
+        Dönem puanı hesaplanırken seçilen maçın
+        mevcut puanı çıkarıldı ve yerine simülasyon
+        puanı eklendi.
+
+        <br>
+
+        Gerçek maç skoru, match_points,
+        dönem tablosu ve genel klasman değiştirilmedi.
+
+      </div>
+    `;
+
+  } catch (error) {
+    if (request !== simulationRequest) return;
+
+    console.error(
+      "Simülasyon hatası:",
+      error
+    );
+
+    if (handleSessionError(error)) return;
+
+    container.className =
+      "card simulation-empty";
+
+    container.innerHTML = `
+      Simülasyon hesaplanamadı:
+      ${escapeHTML(error.message || "")}
+    `;
+  }
+};
