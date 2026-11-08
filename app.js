@@ -5285,3 +5285,481 @@ runSimulation = async function() {
     `;
   }
 };
+/* =========================================
+   KARŞILAŞTIRMA TABLOSU
+   MOBİLDE TÜM SÜTUNLARI EKRANA SIĞDIR
+========================================= */
+
+if (!document.getElementById("comparisonFitScreenStyles")) {
+  const comparisonFitScreenStyle =
+    document.createElement("style");
+
+  comparisonFitScreenStyle.id =
+    "comparisonFitScreenStyles";
+
+  comparisonFitScreenStyle.textContent = `
+    /* Karşılaştırma paneli ekran dışına taşmasın */
+    #comparisonPanel {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    #comparisonContent.comparison-scroll {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+
+      overflow-x: hidden;
+      overflow-y: visible;
+    }
+
+    /*
+     * Kritik düzeltme:
+     * Önceki min-width: 680px kaldırılıyor.
+     */
+    #comparisonContent .comparison-table {
+      width: 100%;
+      min-width: 0 !important;
+      max-width: 100%;
+
+      table-layout: fixed;
+      border-collapse: collapse;
+      white-space: normal;
+    }
+
+    /* Tüm hücrelerin kullanılabilir alana sıkışmasını sağla */
+    #comparisonContent .comparison-table th,
+    #comparisonContent .comparison-table td {
+      min-width: 0 !important;
+      max-width: none;
+
+      padding: 9px 4px;
+
+      text-align: center;
+      vertical-align: middle;
+
+      white-space: normal;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      word-break: normal;
+
+      line-height: 1.3;
+    }
+
+    /*
+     * İlk sütun maç ve takım bilgilerini içeriyor.
+     * Ekranın yaklaşık üçte biri bu sütuna ayrılır.
+     */
+    #comparisonContent .comparison-table th:first-child,
+    #comparisonContent .comparison-table td:first-child {
+      width: 34%;
+      min-width: 0 !important;
+
+      padding-left: 7px;
+      padding-right: 5px;
+
+      text-align: left;
+    }
+
+    /*
+     * Oyuncu sütunları kalan alanı eşit paylaşır.
+     */
+    #comparisonContent .comparison-table th:not(:first-child),
+    #comparisonContent .comparison-table td:not(:first-child) {
+      width: auto;
+      min-width: 0 !important;
+
+      padding-left: 3px;
+      padding-right: 3px;
+    }
+
+    /* Oyuncu isimlerinin uzun olması tabloyu genişletmesin */
+    #comparisonContent .comparison-table th {
+      font-size: 11px;
+      line-height: 1.2;
+
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    /* Takım satırı */
+    #comparisonContent .comparison-match {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      align-items: center;
+
+      gap: 6px;
+      min-width: 0;
+      margin: 5px 0;
+    }
+
+    #comparisonContent .comparison-match span {
+      min-width: 0;
+
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    #comparisonContent .comparison-match .team-badge {
+      width: 22px;
+      height: 22px;
+      max-width: 100%;
+
+      object-fit: contain;
+    }
+
+    /* Maç sonucu */
+    #comparisonContent .comparison-result {
+      display: block;
+
+      margin-top: 7px;
+
+      font-size: 10px;
+      line-height: 1.3;
+
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    /* Tahmin skoru */
+    #comparisonContent .cmp-prediction {
+      font-size: 12px;
+      font-weight: 800;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: clip;
+    }
+
+    /*
+     * Önceki white-space: nowrap değeri kaldırılıyor.
+     * Puan açıklaması hücre içinde alt satıra geçebilir.
+     */
+    #comparisonContent .cmp-points {
+      display: block;
+
+      max-width: 100%;
+      margin-top: 6px;
+
+      font-size: 10px;
+      line-height: 1.35;
+
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    /* Haftalık toplam satırı */
+    #comparisonContent .comparison-table tfoot td {
+      position: sticky;
+      bottom: 0;
+      z-index: 4;
+
+      padding: 10px 4px;
+
+      background: var(--panel, #0b1d30);
+      border-top: 2px solid var(--gold, #f8c644);
+
+      box-shadow:
+        0 -6px 14px rgba(0, 0, 0, .18);
+    }
+
+    #comparisonContent .comparison-total-label {
+      display: block;
+
+      color: var(--gold, #f8c644);
+
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1.25;
+      letter-spacing: 0;
+
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    #comparisonContent .comparison-total-points {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      min-width: 0;
+      max-width: 100%;
+
+      padding: 6px 7px;
+
+      border-radius: 999px;
+
+      font-size: 11px;
+      font-weight: 900;
+
+      white-space: nowrap;
+    }
+
+    #comparisonContent .comparison-total-note {
+      display: block;
+
+      margin-top: 4px;
+
+      font-size: 9px;
+      line-height: 1.2;
+
+      white-space: normal;
+    }
+
+    /* =================================
+       TABLET
+    ================================= */
+
+    @media (max-width: 760px) {
+      #comparisonContent .comparison-table {
+        font-size: 10px;
+      }
+
+      #comparisonContent .comparison-table th,
+      #comparisonContent .comparison-table td {
+        padding: 8px 3px;
+      }
+
+      #comparisonContent .comparison-table th:first-child,
+      #comparisonContent .comparison-table td:first-child {
+        width: 33%;
+      }
+    }
+
+    /* =================================
+       TELEFON
+    ================================= */
+
+    @media (max-width: 600px) {
+      /*
+       * Ana container mobilde kenarlarda 12px bırakıyor.
+       * Karşılaştırma paneli bu alanı tam kullanır.
+       */
+      #comparisonPanel {
+        width: calc(100vw - 8px);
+        max-width: calc(100vw - 8px);
+
+        margin-left: calc(
+          (100% - (100vw - 8px)) / 2
+        );
+      }
+
+      #comparisonPanel .section-head,
+      #comparisonPanel .feature-filter,
+      #comparisonPanel .feature-note {
+        width: calc(100% - 16px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      #comparisonContent.comparison-scroll {
+        width: 100%;
+        max-width: 100%;
+
+        margin-left: 0;
+        margin-right: 0;
+
+        border-radius: 8px;
+        overflow-x: hidden;
+      }
+
+      #comparisonContent .comparison-table {
+        width: 100%;
+        min-width: 0 !important;
+        max-width: 100%;
+
+        table-layout: fixed;
+
+        font-size: clamp(
+          7px,
+          2.15vw,
+          10px
+        );
+      }
+
+      #comparisonContent .comparison-table th,
+      #comparisonContent .comparison-table td {
+        min-width: 0 !important;
+
+        padding: 7px 2px;
+
+        font-size: inherit;
+        line-height: 1.2;
+
+        white-space: normal;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+      }
+
+      /*
+       * Maç sütunu.
+       * Dört oyunculu görünümde %36 dengeli çalışır.
+       */
+      #comparisonContent .comparison-table th:first-child,
+      #comparisonContent .comparison-table td:first-child {
+        width: 36%;
+
+        padding-left: 4px;
+        padding-right: 3px;
+      }
+
+      #comparisonContent .comparison-table th:not(:first-child),
+      #comparisonContent .comparison-table td:not(:first-child) {
+        padding-left: 1px;
+        padding-right: 1px;
+      }
+
+      #comparisonContent .comparison-table th {
+        font-size: clamp(
+          7px,
+          2vw,
+          9px
+        );
+      }
+
+      #comparisonContent .comparison-match {
+        grid-template-columns:
+          19px
+          minmax(0, 1fr);
+
+        gap: 4px;
+        margin: 4px 0;
+
+        font-size: clamp(
+          8px,
+          2.25vw,
+          10px
+        );
+      }
+
+      #comparisonContent .comparison-match .team-badge {
+        width: 18px;
+        height: 18px;
+      }
+
+      #comparisonContent .comparison-result {
+        margin-top: 5px;
+
+        font-size: clamp(
+          7px,
+          1.95vw,
+          9px
+        );
+      }
+
+      #comparisonContent .cmp-prediction {
+        font-size: clamp(
+          9px,
+          2.4vw,
+          11px
+        );
+
+        white-space: nowrap;
+      }
+
+      #comparisonContent .cmp-points {
+        margin-top: 5px;
+
+        font-size: clamp(
+          7px,
+          1.9vw,
+          9px
+        );
+
+        line-height: 1.25;
+
+        white-space: normal !important;
+      }
+
+      #comparisonContent .comparison-table tfoot td {
+        padding: 8px 2px;
+      }
+
+      #comparisonContent .comparison-total-label {
+        font-size: clamp(
+          8px,
+          2.15vw,
+          10px
+        );
+      }
+
+      #comparisonContent .comparison-total-points {
+        min-width: 0;
+        max-width: 100%;
+
+        padding: 5px 4px;
+
+        font-size: clamp(
+          8px,
+          2.2vw,
+          10px
+        );
+      }
+
+      #comparisonContent .comparison-total-points.leader {
+        box-shadow:
+          0 0 0 1px
+          rgba(248, 198, 68, .18);
+      }
+
+      #comparisonContent .comparison-total-note {
+        font-size: 7px;
+      }
+
+      #comparisonContent .cmp-update-note {
+        padding: 9px 6px;
+        font-size: 9px;
+      }
+    }
+
+    /* =================================
+       ÇOK DAR TELEFON
+    ================================= */
+
+    @media (max-width: 400px) {
+      #comparisonContent .comparison-table th:first-child,
+      #comparisonContent .comparison-table td:first-child {
+        width: 34%;
+      }
+
+      #comparisonContent .comparison-table th,
+      #comparisonContent .comparison-table td {
+        padding: 6px 1px;
+      }
+
+      #comparisonContent .comparison-match {
+        grid-template-columns:
+          17px
+          minmax(0, 1fr);
+      }
+
+      #comparisonContent .comparison-match .team-badge {
+        width: 16px;
+        height: 16px;
+      }
+    }
+  `;
+
+  document.head.appendChild(
+    comparisonFitScreenStyle
+  );
+}
+
+/*
+ * Karşılaştırma açıklamasını yeni davranışa göre güncelle.
+ */
+const comparisonFitNote =
+  document.querySelector(
+    "#comparisonPanel .feature-note"
+  );
+
+if (comparisonFitNote) {
+  comparisonFitNote.textContent =
+    "Tahminler ve maç bazlı puanlar ekrana sığdırılır. " +
+    "Canlı puanlar son alınan skora göre değişir. " +
+    "Altın hücreler biten maçlardaki tam skor eşleşmeleridir.";
+}
